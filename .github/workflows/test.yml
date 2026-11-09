@@ -45,6 +45,31 @@ jobs:
           ! grep -q "primary_wan" "$C"
           ! grep -q "secondary_wan" "$C"
 
+      - name: Simulate install and uninstall
+        shell: bash
+        run: |
+          set -euo pipefail
+          P=mptcp-suite-core
+          ROOT="$(mktemp -d)"
+          trap 'rm -rf "$ROOT"' EXIT
+
+          install -d "$ROOT/etc/config" "$ROOT/usr/libexec/mptcp-suite"
+          install -m 600 "$P/files/etc/config/mptcp_suite" "$ROOT/etc/config/"
+          install -m 755 "$P"/files/usr/libexec/mptcp-suite/* "$ROOT/usr/libexec/mptcp-suite/"
+
+          test "$(find "$ROOT" -type f | wc -l)" -eq 4
+          test "$(stat -c %a "$ROOT/etc/config/mptcp_suite")" = 600
+
+          for F in "$ROOT"/usr/libexec/mptcp-suite/*; do
+            test "$(stat -c %a "$F")" = 755
+            sh -n "$F"
+          done
+
+          ! find "$ROOT" -type f | grep -Eq '/etc/init.d/|/etc/hotplug.d/'
+          rm -rf "$ROOT/usr/libexec/mptcp-suite"
+          test -f "$ROOT/etc/config/mptcp_suite"
+          echo "INSTALL_UNINSTALL_SIMULATION_OK"
+
       - name: Build OpenWrt APK
         uses: openwrt/gh-action-sdk@main
         env:
