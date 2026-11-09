@@ -1,0 +1,40 @@
+#!/bin/sh
+set +e
+
+used_table(){ ip rule show | grep -qw "lookup $1"; }
+used_port(){ ss -lntuH | awk '{print $5}' | grep -q ":$1$"; }
+used_mark(){ nft list ruleset 2>/dev/null | grep -qi "$1"; }
+
+BASE=11001
+while used_table "$BASE" || used_table "$((BASE+1))" || used_table "$((BASE+2))"; do
+ BASE=$((BASE+3))
+done
+
+PORT=12000
+while used_port "$PORT" || used_port "$((PORT+1))" || used_port "$((PORT+2))"; do
+ PORT=$((PORT+3))
+done
+
+MARK_PREFIX=""
+for DEC in $(seq 74 127); do
+ HEX="$(printf '%02X' "$DEC")"
+ if ! nft list ruleset 2>/dev/null | grep -Eqi "0x0*${HEX}[0-9a-f]{2}"; then
+  MARK_PREFIX="$HEX"
+  break
+ fi
+done
+
+if [ -z "$MARK_PREFIX" ]; then
+ echo "ERROR=no_free_mark_namespace"
+ return 1 2>/dev/null || false
+fi
+
+echo "primary_table=$BASE"
+echo "secondary_table=$((BASE+1))"
+echo "tproxy_table=$((BASE+2))"
+echo "tproxy_mark=0x${MARK_PREFIX}01"
+echo "bypass_mark=0x${MARK_PREFIX}02"
+echo "policy_mark=0x${MARK_PREFIX}03"
+echo "dns_port=$PORT"
+echo "main_port=$((PORT+1))"
+echo "limited_port=$((PORT+2))"

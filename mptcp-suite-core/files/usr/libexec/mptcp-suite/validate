@@ -1,0 +1,40 @@
+#!/bin/sh
+set +e
+
+CFG=/etc/config
+P="$(uci -c "$CFG" -q get mptcp_suite.core.primary_wan)"
+S="$(uci -c "$CFG" -q get mptcp_suite.core.secondary_wan)"
+ERR=0
+
+check_wan() {
+ IF="$1"
+ LABEL="$2"
+ STATUS="$(ifstatus "$IF" 2>/dev/null)"
+ UP="$(printf '%s' "$STATUS" | jsonfilter -e '@.up' 2>/dev/null)"
+ DEV="$(printf '%s' "$STATUS" | jsonfilter -e '@.l3_device' 2>/dev/null)"
+ IP="$(printf '%s' "$STATUS" | jsonfilter -e '@["ipv4-address"][0].address' 2>/dev/null)"
+ GW="$(printf '%s' "$STATUS" | jsonfilter -e '@.route[0].nexthop' 2>/dev/null)"
+
+ [ "$UP" = true ] || { echo "ERROR $LABEL: interface tidak aktif"; ERR=1; }
+ [ -n "$DEV" ] || { echo "ERROR $LABEL: device tidak ditemukan"; ERR=1; }
+ [ -n "$IP" ] || { echo "ERROR $LABEL: IPv4 tidak ditemukan"; ERR=1; }
+ [ -n "$GW" ] || { echo "ERROR $LABEL: gateway tidak ditemukan"; ERR=1; }
+
+ printf '%s=%s device=%s ip=%s gateway=%s\n' "$LABEL" "$IF" "$DEV" "$IP" "$GW"
+}
+
+[ -n "$P" ] && [ -n "$S" ] || {
+ echo "ERROR: WAN belum dipilih"
+ ERR=1
+}
+
+[ "$P" != "$S" ] || {
+ echo "ERROR: WAN utama dan kedua sama"
+ ERR=1
+}
+
+check_wan "$P" PRIMARY
+check_wan "$S" SECONDARY
+
+[ "$ERR" = 0 ] && echo "UNIVERSAL_CONFIG_VALID"
+exit "$ERR"

@@ -1,0 +1,18 @@
+
+config core 'core'
+	option version '0.1'
+	option lan_network 'lan'
+	option auto_detect '1'
+
+config routing 'routing'
+	option allocated '0'
+
+config xray 'xray'
+	option enabled '1'
+
+config modules 'modules'
+	option xray '1'
+	option traffic_policy '1'
+	option netcontrol '0'
+	option cake '0'
+

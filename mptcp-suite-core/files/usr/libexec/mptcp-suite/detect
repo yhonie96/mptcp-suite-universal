@@ -1,0 +1,29 @@
+#!/bin/sh
+. /lib/functions.sh
+
+echo "=== LAN ==="
+printf 'network=lan device=%s\n' "$(uci -q get network.lan.device)"
+
+echo "=== KANDIDAT WAN ==="
+detect_iface() {
+ local s="$1" up dev ip gw metric
+ [ "$s" = lan ] && return
+ [ "$s" = loopback ] && return
+
+ up="$(ifstatus "$s" 2>/dev/null | jsonfilter -e '@.up')"
+ [ "$up" = true ] || return
+
+ dev="$(ifstatus "$s" | jsonfilter -e '@.l3_device')"
+ ip="$(ifstatus "$s" | jsonfilter -e '@["ipv4-address"][0].address')"
+ gw="$(ifstatus "$s" | jsonfilter -e '@.route[0].nexthop')"
+ metric="$(uci -q get network.$s.metric)"
+
+ [ -n "$dev" ] || return
+ printf '%s|%s|%s|%s|%s\n' "$s" "$dev" "$ip" "$gw" "${metric:-0}"
+}
+
+config_load network
+config_foreach detect_iface interface
+
+echo "=== DEFAULT ROUTE ==="
+ip -4 route show default
