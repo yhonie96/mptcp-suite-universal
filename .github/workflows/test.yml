@@ -1,0 +1,70 @@
+name: Test Core Package
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Static validation
+        shell: bash
+        run: |
+          set -e
+          P=mptcp-suite-core
+          test -f "$P/Makefile"
+          test -f "$P/files/etc/config/mptcp_suite"
+
+          for F in "$P"/files/usr/libexec/mptcp-suite/*; do
+            sh -n "$F"
+            test -x "$F"
+          done
+
+          test "$(awk 'index($0,"\t")==1{n++}END{print n+0}' "$P/Makefile")" -eq 4
+
+      - name: Reject router-specific hardcodes
+        shell: bash
+        run: |
+          set -e
+          P=mptcp-suite-core
+          if grep -RniE '192\.168\.(1|8)\.|eth1|phy0-sta0|WAN1|103\.147\.32\.114' "$P/files"; then
+            echo "Router-specific hardcode found"
+            exit 1
+          fi
+
+      - name: Validate package defaults
+        shell: bash
+        run: |
+          set -e
+          C=mptcp-suite-core/files/etc/config/mptcp_suite
+          grep -q "option allocated '0'" "$C"
+          ! grep -q "primary_wan" "$C"
+          ! grep -q "secondary_wan" "$C"
+
+      - name: Build OpenWrt APK
+        uses: openwrt/gh-action-sdk@main
+        env:
+          ARCH: x86_64-25.12.5
+          PACKAGES: mptcp-suite-core
+          BUILD_LOG: 1
+
+      - name: Verify APK
+        shell: bash
+        run: |
+          set -e
+          APK="$(find bin/packages -name 'mptcp-suite-core-*.apk' | head -n1)"
+          test -n "$APK"
+          test -s "$APK"
+          echo "APK=$APK"
+          sha256sum "$APK"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tested-mptcp-suite-core-x86_64
+          path: |
+            bin/packages/**/mptcp-suite-core-*.apk
+            logs/**
