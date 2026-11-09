@@ -1,0 +1,53 @@
+#!/bin/sh
+set +e
+CFG="${1:-/etc/config}"
+OUT="${2:-/tmp/mptcp-routing.plan}"
+
+get(){ uci -c "$CFG" -q get "mptcp_suite.$1"; }
+
+PRIMARY="$(get core.primary_wan)"
+SECONDARY="$(get core.secondary_wan)"
+PT="$(get routing.primary_table)"
+ST="$(get routing.secondary_table)"
+TT="$(get routing.tproxy_table)"
+TM="$(get routing.tproxy_mark)"
+BM="$(get routing.bypass_mark)"
+PM="$(get routing.policy_mark)"
+
+[ -n "$PRIMARY" ] && [ -n "$SECONDARY" ] &&
+[ -n "$PT" ] && [ -n "$ST" ] && [ -n "$TT" ] &&
+[ -n "$TM" ] && [ -n "$BM" ] && [ -n "$PM" ] || {
+ echo "ERROR=incomplete_configuration"
+ exit 1
+}
+
+status(){
+ ifstatus "$1" 2>/dev/null
+}
+
+PJSON="$(status "$PRIMARY")"
+SJSON="$(status "$SECONDARY")"
+PDEV="$(printf '%s' "$PJSON" | jsonfilter -e '@.l3_device')"
+SDEV="$(printf '%s' "$SJSON" | jsonfilter -e '@.l3_device')"
+PIP="$(printf '%s' "$PJSON" | jsonfilter -e '@["ipv4-address"][0].address')"
+SIP="$(printf '%s' "$SJSON" | jsonfilter -e '@["ipv4-address"][0].address')"
+PGW="$(printf '%s' "$PJSON" | jsonfilter -e '@.route[0].nexthop')"
+SGW="$(printf '%s' "$SJSON" | jsonfilter -e '@.route[0].nexthop')"
+
+[ -n "$PDEV" ] && [ -n "$SDEV" ] &&
+[ -n "$PIP" ] && [ -n "$SIP" ] &&
+[ -n "$PGW" ] && [ -n "$SGW" ] || {
+ echo "ERROR=interface_runtime_missing"
+ exit 1
+}
+
+cat >"$OUT" <<EOF
+ip route replace default via $PGW dev $PDEV table $PT
+ip route replace default via $SGW dev $SDEV table $ST
+ip rule add priority 98 fwmark $BM lookup $PT
+ip rule add priority 99 fwmark $PM lookup $ST
+ip rule add priority 100 fwmark $TM lookup $TT
+EOF
+
+echo "ROUTING_PLAN_OK=$OUT"
+cat "$OUT"
