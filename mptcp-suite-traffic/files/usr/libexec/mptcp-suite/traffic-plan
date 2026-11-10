@@ -1,0 +1,26 @@
+#!/bin/sh
+set -eu
+CFG="${1:-/etc/config}"
+OUT="${2:-/tmp/mptcp-traffic.nft}"
+get(){ uci -c "$CFG" -q get "mptcp_suite.$1"; }
+TM="$(get routing.tproxy_mark)"; BM="$(get routing.bypass_mark)"; PM="$(get routing.policy_mark)"
+[ -n "$TM" ] && [ -n "$BM" ] && [ -n "$PM" ] || { echo ERROR=incomplete_marks; exit 1; }
+[ "$TM" != "$BM" ] && [ "$TM" != "$PM" ] && [ "$BM" != "$PM" ] || { echo ERROR=duplicate_marks; exit 1; }
+valid_mark(){ printf '%s' "$1" | grep -Eq '^0x[0-9A-Fa-f]{1,8}$'; }
+valid_mark "$TM" && valid_mark "$BM" && valid_mark "$PM" || { echo ERROR=invalid_mark; exit 1; }
+cat >"$OUT" <<EOF
+table inet mptcp_suite {
+ chain policy_prerouting {
+  type filter hook prerouting priority mangle; policy accept;
+  ip saddr @bypass_src meta mark set $BM
+  ip saddr @primary_src meta mark set $BM
+  ip saddr @secondary_src meta mark set $PM
+  ip saddr @tproxy_src meta mark set $TM
+ }
+ set bypass_src { type ipv4_addr; flags interval; }
+ set primary_src { type ipv4_addr; flags interval; }
+ set secondary_src { type ipv4_addr; flags interval; }
+ set tproxy_src { type ipv4_addr; flags interval; }
+}
+EOF
+echo "TRAFFIC_PLAN_OK=$OUT"
