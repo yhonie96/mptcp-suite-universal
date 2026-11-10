@@ -44,7 +44,9 @@ grep -q "ip saddr 192.0.2.20/32 meta mark set 0x4A03 return" "$D/secondary.nft"
 grep -q "ip saddr 192.0.2.20/32 meta mark set 0x4A01 return" "$D/tproxy.nft"
 POLICY=secondary; export POLICY
 if [ "${NFT_CHECK:-0}" = 1 ]; then
- nft --check --file "$D/ok.nft"
+ for F in ok bypass primary secondary tproxy; do
+  nft --check --file "$D/$F.nft" || exit 1
+ done
 fi
 
 POLICY=invalid
