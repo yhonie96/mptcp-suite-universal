@@ -34,6 +34,15 @@ grep -q 'fib daddr type local return' "$D/ok.nft"
 grep -q 'udp dport 53 return' "$D/ok.nft"
 grep -q '192.0.2.20/32 meta mark set 0x4A03 return' "$D/ok.nft"
 grep -q 'AA:BB:CC:DD:EE:01 meta mark set 0x4A03 return' "$D/ok.nft"
+for CASE in bypass primary secondary tproxy; do
+ POLICY="$CASE"; export POLICY
+ sh "$SRC" "$D" "$D/$CASE.nft" >/dev/null || exit 1
+done
+grep -q "ip saddr 192.0.2.20/32 return" "$D/bypass.nft"
+grep -q "ip saddr 192.0.2.20/32 meta mark set 0x4A02 return" "$D/primary.nft"
+grep -q "ip saddr 192.0.2.20/32 meta mark set 0x4A03 return" "$D/secondary.nft"
+grep -q "ip saddr 192.0.2.20/32 meta mark set 0x4A01 return" "$D/tproxy.nft"
+POLICY=secondary; export POLICY
 if [ "${NFT_CHECK:-0}" = 1 ]; then
  nft --check --file "$D/ok.nft"
 fi
