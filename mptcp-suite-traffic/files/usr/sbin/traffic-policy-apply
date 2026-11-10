@@ -1,0 +1,75 @@
+#!/bin/sh
+set -e
+. /lib/functions.sh
+
+BASE=/etc/traffic-policy
+LOCK=/tmp/traffic-policy.lock
+R="$BASE/rollback"
+mkdir "$LOCK" 2>/dev/null || { echo APPLY_BUSY; exit 2; }
+trap 'rmdir "$LOCK" 2>/dev/null' EXIT
+mkdir -p "$R"
+
+cp -af /etc/config/dhcp "$R/dhcp"
+nft list table ip traffic_policy >"$R/runtime.nft" 2>/dev/null || : >"$R/runtime.nft"
+
+rollback(){
+ cp -af "$R/dhcp" /etc/config/dhcp
+ nft delete table ip traffic_policy 2>/dev/null || true
+ [ ! -s "$R/runtime.nft" ] || nft -f "$R/runtime.nft"
+ /etc/init.d/dnsmasq restart >/dev/null 2>&1 || true
+ echo APPLY_ROLLBACK
+ exit 1
+}
+
+wait_dns(){
+ W=0
+ while [ "$W" -lt 12 ]; do
+  nslookup google.com 127.0.0.1 >/dev/null 2>&1 && return 0
+  W=$((W+1))
+  sleep 2
+ done
+ return 1
+}
+
+/usr/sbin/traffic-policy-validate || rollback
+/usr/sbin/traffic-policy-generate >/dev/null || rollback
+sed 's/traffic_policy_test/traffic_policy/g' \
+ /tmp/traffic-policy-test.nft >/tmp/traffic-policy-runtime.nft
+
+{
+ echo 'delete table ip traffic_policy'
+ cat /tmp/traffic-policy-runtime.nft
+} >/tmp/traffic-policy-transaction.nft
+
+nft -c -f /tmp/traffic-policy-transaction.nft || rollback
+
+for S in $(uci show dhcp | awk -F'[.=]' \
+ '$1=="dhcp" && $2 ~ /^traffic_manual_/ && $3=="ipset" {print $2}'); do
+ uci -q delete "dhcp.$S"
+done
+
+N=0
+add_domain(){ uci add_list "dhcp.traffic_manual_$N.domain=$1"; }
+add_rule(){
+ local S="$1" E T
+ config_get E "$S" enabled 1
+ config_get T "$S" target
+ [ "$E:$T" = "1:wwan" ] || return 0
+ N=$((N+1))
+ uci set dhcp.traffic_manual_$N=ipset
+ uci add_list dhcp.traffic_manual_$N.name=manual_$N
+ uci set dhcp.traffic_manual_$N.table=traffic_policy
+ uci set dhcp.traffic_manual_$N.table_family=ip
+ uci set dhcp.traffic_manual_$N.family=4
+ config_list_foreach "$S" domain add_domain
+}
+
+config_load traffic_policy
+config_foreach add_rule rule
+uci commit dhcp
+
+nft -f /tmp/traffic-policy-transaction.nft || rollback
+/etc/init.d/dnsmasq restart >/dev/null 2>&1 || rollback
+wait_dns || rollback
+
+echo "APPLY_OK rules=$N"

@@ -88,6 +88,13 @@ jobs:
           chmod +x tests/test-routing-plan.sh
           tests/test-routing-plan.sh
 
+      - name: Test traffic package
+        shell: bash
+        run: |
+          set -e
+          chmod +x tests/test-traffic-package.sh
+          tests/test-traffic-package.sh
+
       - name: Test traffic policy plan
         shell: bash
         run: |

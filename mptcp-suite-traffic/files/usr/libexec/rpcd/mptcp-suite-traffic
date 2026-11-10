@@ -1,0 +1,18 @@
+#!/bin/sh
+. /usr/share/libubox/jshn.sh
+case "$1" in
+ list)
+  echo '{"apply":{"commit":"Boolean"}}'
+ ;;
+ call)
+  [ "$2" = apply ] || exit 1
+  uci commit traffic_policy
+  O="$(/usr/sbin/traffic-policy-apply 2>&1)"
+  RC=$?
+  json_init
+  [ "$RC" -eq 0 ] && json_add_boolean ok 1 || json_add_boolean ok 0
+  json_add_int rc "$RC"
+  json_add_string message "$O"
+  json_dump
+ ;;
+esac

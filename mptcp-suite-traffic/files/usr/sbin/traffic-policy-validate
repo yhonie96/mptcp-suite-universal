@@ -1,0 +1,47 @@
+#!/bin/sh
+. /lib/functions.sh
+ERR=0
+COUNT=0
+ITEMS=0
+CUR=""
+
+bad(){ echo "ERROR $CUR $1: $2"; ERR=1; }
+
+check_domain(){
+ ITEMS=$((ITEMS+1))
+ echo "$1" | grep -Eq '^([A-Za-z0-9_-]+\.)+[A-Za-z]{2,63}$' ||
+  bad domain "$1"
+}
+
+check_ipv4(){
+ ITEMS=$((ITEMS+1))
+ echo "$1" | awk -F'[./]' '
+ NF!=4 && NF!=5 {exit 1}
+ {
+  for(i=1;i<=4;i++)
+   if($i !~ /^[0-9]+$/ || $i<0 || $i>255) exit 1
+  if(NF==5 && ($5 !~ /^[0-9]+$/ || $5<0 || $5>32)) exit 1
+ }' || bad IPv4/CIDR "$1"
+}
+
+check_rule(){
+ local s="$1" name enabled target
+ CUR="$s"; ITEMS=0
+ config_get name "$s" name
+ config_get enabled "$s" enabled 1
+ config_get target "$s" target
+ [ "$enabled" = 1 ] || return
+
+ COUNT=$((COUNT+1))
+ [ -n "$name" ] || bad nama kosong
+ case "$target" in default|wan1|wwan) ;; *) bad target "$target" ;; esac
+
+ config_list_foreach "$s" domain check_domain
+ config_list_foreach "$s" ipv4 check_ipv4
+ [ "$ITEMS" -gt 0 ] || bad tujuan kosong
+}
+
+config_load traffic_policy
+config_foreach check_rule rule
+[ "$ERR" = 0 ] || exit 1
+echo "VALID rules=$COUNT"

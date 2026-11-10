@@ -1,0 +1,17 @@
+{
+ "mptcp-suite-traffic": {
+  "description": "Manage MPTCP Suite traffic policies",
+  "read": {
+   "ubus": {
+    "mptcp-suite-traffic": [ "apply" ]
+   },
+   "uci": [ "traffic_policy" ]
+  },
+  "write": {
+   "ubus": {
+    "mptcp-suite-traffic": [ "apply" ]
+   },
+   "uci": [ "traffic_policy" ]
+  }
+ }
+}
