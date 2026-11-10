@@ -74,6 +74,13 @@ jobs:
           test -f "$ROOT/etc/config/mptcp_suite"
           echo "INSTALL_UNINSTALL_SIMULATION_OK"
 
+      - name: Test universal allocator
+        shell: bash
+        run: |
+          set -e
+          chmod +x tests/test-allocate.sh
+          tests/test-allocate.sh
+
       - name: Test universal routing plan
         shell: bash
         run: |

@@ -2,12 +2,22 @@
 set +e
 
 used_table(){ ip rule show | grep -qw "lookup $1"; }
+used_priority(){ ip rule show | grep -Eq "^[[:space:]]*$1:"; }
 used_port(){ ss -lntuH | awk '{print $5}' | grep -q ":$1$"; }
 used_mark(){ nft list ruleset 2>/dev/null | grep -qi "$1"; }
 
 BASE=11001
 while used_table "$BASE" || used_table "$((BASE+1))" || used_table "$((BASE+2))"; do
  BASE=$((BASE+3))
+done
+
+PRIORITY=98
+while used_priority "$PRIORITY" || used_priority "$((PRIORITY+1))" || used_priority "$((PRIORITY+2))"; do
+ PRIORITY=$((PRIORITY+3))
+ [ "$((PRIORITY+2))" -le 32765 ] || {
+  echo "ERROR=no_free_rule_priority"
+  return 1 2>/dev/null || false
+ }
 done
 
 PORT=12000
@@ -35,9 +45,9 @@ echo "tproxy_table=$((BASE+2))"
 echo "tproxy_mark=0x${MARK_PREFIX}01"
 echo "bypass_mark=0x${MARK_PREFIX}02"
 echo "policy_mark=0x${MARK_PREFIX}03"
-echo "primary_priority=98"
-echo "secondary_priority=99"
-echo "tproxy_priority=100"
+echo "primary_priority=$PRIORITY"
+echo "secondary_priority=$((PRIORITY+1))"
+echo "tproxy_priority=$((PRIORITY+2))"
 echo "dns_port=$PORT"
 echo "main_port=$((PORT+1))"
 echo "limited_port=$((PORT+2))"
