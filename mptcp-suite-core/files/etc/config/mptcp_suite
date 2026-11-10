@@ -16,3 +16,10 @@ config modules 'modules'
 	option netcontrol '0'
 	option cake '0'
 
+
+# Contoh nonaktif untuk UI mendatang.
+config traffic_rule 'example_device'
+option enabled '0'
+option policy 'secondary'
+list src_ip '192.168.1.100'
+list src_mac '02:00:00:00:00:01'
