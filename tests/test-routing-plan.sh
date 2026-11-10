@@ -48,9 +48,10 @@ chmod +x "$T/bin/"*
 export PATH="$T/bin:$PATH"
 
 sh "$SRC" "$T" "$T/normal.plan" >/dev/null
-test "$(wc -l < "$T/normal.plan")" -eq 5
+test "$(wc -l < "$T/normal.plan")" -eq 6
 grep -qx 'ip route replace default via 10.0.0.1 dev eth9 table 11001' "$T/normal.plan"
 grep -qx 'ip route replace default via 20.0.0.1 dev usb9 table 11002' "$T/normal.plan"
+grep -qx 'ip route replace local 0.0.0.0/0 dev lo table 11003' "$T/normal.plan"
 
 ONE_WAN=1; export ONE_WAN
 ! sh "$SRC" "$T" "$T/one.plan" >/dev/null 2>&1

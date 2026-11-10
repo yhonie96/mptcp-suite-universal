@@ -49,6 +49,7 @@ SGW="$(printf '%s' "$SJSON" | jsonfilter -e '@.route[0].nexthop')"
 cat >"$OUT" <<EOF2
 ip route replace default via $PGW dev $PDEV table $PT
 ip route replace default via $SGW dev $SDEV table $ST
+ip route replace local 0.0.0.0/0 dev lo table $TT
 ip rule add priority 98 fwmark $BM lookup $PT # primary mark
 ip rule add priority 99 fwmark $PM lookup $ST
 ip rule add priority 100 fwmark $TM lookup $TT
