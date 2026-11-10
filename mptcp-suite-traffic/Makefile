@@ -11,7 +11,7 @@ define Package/mptcp-suite-traffic
   SECTION:=net
   CATEGORY:=Network
   TITLE:=Universal MPTCP Suite traffic policy planner
-  DEPENDS:=+mptcp-suite-core +mptcp-suite-routing +nftables
+  DEPENDS:=+mptcp-suite-core +mptcp-suite-routing +nftables +uci
 endef
 
 define Build/Compile

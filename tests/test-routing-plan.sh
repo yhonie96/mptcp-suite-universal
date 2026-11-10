@@ -14,9 +14,9 @@ case "$LAST" in
 *mptcp_suite.routing.primary_table) echo "${PT:-11001}";;
 *mptcp_suite.routing.secondary_table) echo "${ST:-11002}";;
 *mptcp_suite.routing.tproxy_table) echo "${TT:-11003}";;
-*mptcp_suite.routing.tproxy_mark) echo 0x4A01;;
-*mptcp_suite.routing.bypass_mark) echo 0x4A02;;
-*mptcp_suite.routing.policy_mark) echo 0x4A03;;
+*mptcp_suite.routing.tproxy_mark) echo "${TM:-0x4A01}";;
+*mptcp_suite.routing.bypass_mark) echo "${BM:-0x4A02}";;
+*mptcp_suite.routing.policy_mark) echo "${PM:-0x4A03}";;
 esac
 MOCK
 
@@ -65,4 +65,6 @@ unset EMPTY_GATEWAY
 PT=11001 ST=11001; export PT ST
 ! sh "$SRC" "$T" "$T/duplicate.plan" >/dev/null 2>&1
 
-echo ROUTING_PLAN_5_SCENARIOS_OK
+PT=11001 ST=11002 TM=0x4A01 BM=0x4A01; export PT ST TM BM
+! sh "$SRC" "$T" "$T/duplicate-mark.plan" >/dev/null 2>&1
+echo ROUTING_PLAN_6_SCENARIOS_OK

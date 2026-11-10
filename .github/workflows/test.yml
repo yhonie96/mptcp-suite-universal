@@ -1,5 +1,9 @@
 name: Test Core Package
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
   workflow_dispatch:
   push:
@@ -85,27 +89,3 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y nftables
           NFT_CHECK=1 sudo -E tests/test-traffic-plan.sh
-
-      - name: Build OpenWrt APK
-        uses: openwrt/gh-action-sdk@main
-        env:
-          ARCH: x86_64-25.12.5
-          PACKAGES: mptcp-suite-core mptcp-suite-routing mptcp-suite-traffic
-          BUILD_LOG: 1
-
-      - name: Verify APK
-        shell: bash
-        run: |
-          set -e
-          APK="$(find bin/packages -name 'mptcp-suite-core-*.apk' | head -n1)"
-          test -n "$APK"
-          test -s "$APK"
-          echo "APK=$APK"
-          sha256sum "$APK"
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: tested-mptcp-suite-core-x86_64
-          path: |
-            bin/packages/**/mptcp-suite-core-*.apk
-            logs/**

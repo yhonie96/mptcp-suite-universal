@@ -26,6 +26,11 @@ PM="$(get routing.policy_mark)"
  exit 1
 }
 
+[ "$TM" != "$BM" ] && [ "$TM" != "$PM" ] && [ "$BM" != "$PM" ] || {
+ echo "ERROR=duplicate_marks"
+ exit 1
+}
+
 status(){
  ifstatus "$1" 2>/dev/null
 }

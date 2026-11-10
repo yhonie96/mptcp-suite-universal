@@ -18,10 +18,10 @@ case "$LAST" in
 *mptcp_suite.routing.tproxy_mark) echo "${TM:-0x4A01}";;
 *mptcp_suite.routing.bypass_mark) echo "${BM:-0x4A02}";;
 *mptcp_suite.routing.policy_mark) echo "${PM:-0x4A03}";;
-*mptcp_suite.phone.enabled) echo 1;;
+*mptcp_suite.phone.enabled) echo "${ENABLED:-1}";;
 *mptcp_suite.phone.policy) echo "${POLICY:-secondary}";;
-*mptcp_suite.phone.src_ip) echo "${IP:-192.0.2.20/32}";;
-*mptcp_suite.phone.src_mac) echo "${MAC:-AA:BB:CC:DD:EE:01}";;
+*mptcp_suite.phone.src_ip) echo "${IP-192.0.2.20/32}";;
+*mptcp_suite.phone.src_mac) echo "${MAC-AA:BB:CC:DD:EE:01}";;
 esac
 MOCK
 
@@ -69,4 +69,13 @@ MAC=AA:BB:CC:DD:EE:01 BM=0x4A01
 export MAC BM
 ! sh "$SRC" "$D" "$D/mark.nft" >/dev/null 2>&1
 
-echo TRAFFIC_PLAN_UCI_9_CHECKS_OK
+TM=0x4A01 BM=0x4A02 PM=0x4A03 POLICY=secondary
+export TM BM PM POLICY
+ENABLED=0 IP=192.0.2.99 MAC=AA:BB:CC:DD:EE:99
+export ENABLED IP MAC
+sh "$SRC" "$D" "$D/disabled.nft" >/dev/null
+! grep -q "192.0.2.99" "$D/disabled.nft"
+ENABLED=1 IP= MAC=
+export ENABLED IP MAC
+! sh "$SRC" "$D" "$D/empty.nft" >/dev/null 2>&1
+echo TRAFFIC_PLAN_UCI_11_CHECKS_OK
