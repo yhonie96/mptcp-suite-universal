@@ -70,6 +70,13 @@ jobs:
           test -f "$ROOT/etc/config/mptcp_suite"
           echo "INSTALL_UNINSTALL_SIMULATION_OK"
 
+      - name: Test universal routing plan
+        shell: bash
+        run: |
+          set -e
+          chmod +x tests/test-routing-plan.sh
+          tests/test-routing-plan.sh
+
       - name: Build OpenWrt APK
         uses: openwrt/gh-action-sdk@main
         env:

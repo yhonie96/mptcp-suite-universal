@@ -21,6 +21,11 @@ PM="$(get routing.policy_mark)"
  exit 1
 }
 
+[ "$PT" != "$ST" ] && [ "$PT" != "$TT" ] && [ "$ST" != "$TT" ] || {
+ echo "ERROR=duplicate_table_id"
+ exit 1
+}
+
 status(){
  ifstatus "$1" 2>/dev/null
 }
@@ -41,13 +46,13 @@ SGW="$(printf '%s' "$SJSON" | jsonfilter -e '@.route[0].nexthop')"
  exit 1
 }
 
-cat >"$OUT" <<EOF
+cat >"$OUT" <<EOF2
 ip route replace default via $PGW dev $PDEV table $PT
 ip route replace default via $SGW dev $SDEV table $ST
 ip rule add priority 98 fwmark $BM lookup $PT
 ip rule add priority 99 fwmark $PM lookup $ST
 ip rule add priority 100 fwmark $TM lookup $TT
-EOF
+EOF2
 
 echo "ROUTING_PLAN_OK=$OUT"
 cat "$OUT"
