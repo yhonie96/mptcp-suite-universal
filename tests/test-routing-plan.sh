@@ -17,6 +17,9 @@ case "$LAST" in
 *mptcp_suite.routing.tproxy_mark) echo "${TM:-0x4A01}";;
 *mptcp_suite.routing.bypass_mark) echo "${BM:-0x4A02}";;
 *mptcp_suite.routing.policy_mark) echo "${PM:-0x4A03}";;
+*mptcp_suite.routing.primary_priority) echo "${BP:-98}";;
+*mptcp_suite.routing.secondary_priority) echo "${PP:-99}";;
+*mptcp_suite.routing.tproxy_priority) echo "${TP:-100}";;
 esac
 MOCK
 
@@ -67,4 +70,17 @@ PT=11001 ST=11001; export PT ST
 
 PT=11001 ST=11002 TM=0x4A01 BM=0x4A01; export PT ST TM BM
 ! sh "$SRC" "$T" "$T/duplicate-mark.plan" >/dev/null 2>&1
-echo ROUTING_PLAN_6_SCENARIOS_OK
+PT=11001 ST=11002 TM=0x4A01 BM=0x4A02 BP=98 PP=98 TP=100
+export PT ST TM BM BP PP TP
+! sh "$SRC" "$T" "$T/duplicate-priority.plan" >/dev/null 2>&1
+BP=0 PP=99 TP=100; export BP PP TP
+! sh "$SRC" "$T" "$T/priority-range.plan" >/dev/null 2>&1
+BP=bad; export BP
+! sh "$SRC" "$T" "$T/priority-invalid.plan" >/dev/null 2>&1
+BP=98 PT=0; export BP PT
+! sh "$SRC" "$T" "$T/table-range.plan" >/dev/null 2>&1
+PT=bad; export PT
+! sh "$SRC" "$T" "$T/table-invalid.plan" >/dev/null 2>&1
+PT=11001 BP=; export PT BP
+! sh "$SRC" "$T" "$T/priority-missing.plan" >/dev/null 2>&1
+echo ROUTING_PLAN_12_SCENARIOS_OK

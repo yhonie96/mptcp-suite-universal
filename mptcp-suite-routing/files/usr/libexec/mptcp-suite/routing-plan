@@ -13,10 +13,14 @@ TT="$(get routing.tproxy_table)"
 TM="$(get routing.tproxy_mark)"
 BM="$(get routing.bypass_mark)"
 PM="$(get routing.policy_mark)"
+BP="$(get routing.primary_priority)"
+PP="$(get routing.secondary_priority)"
+TP="$(get routing.tproxy_priority)"
 
 [ -n "$PRIMARY" ] && [ -n "$SECONDARY" ] &&
 [ -n "$PT" ] && [ -n "$ST" ] && [ -n "$TT" ] &&
-[ -n "$TM" ] && [ -n "$BM" ] && [ -n "$PM" ] || {
+[ -n "$TM" ] && [ -n "$BM" ] && [ -n "$PM" ] &&
+[ -n "$BP" ] && [ -n "$PP" ] && [ -n "$TP" ] || {
  echo "ERROR=incomplete_configuration"
  exit 1
 }
@@ -30,6 +34,13 @@ PM="$(get routing.policy_mark)"
  echo "ERROR=duplicate_marks"
  exit 1
 }
+
+number(){ case "$1" in ""|*[!0-9]*) return 1;; esac; }
+number "$PT" && number "$ST" && number "$TT" || { echo "ERROR=invalid_table_id"; exit 1; }
+number "$BP" && number "$PP" && number "$TP" || { echo "ERROR=invalid_priority"; exit 1; }
+[ "$PT" -ge 1 ] && [ "$PT" -le 4294967295 ] && [ "$ST" -ge 1 ] && [ "$ST" -le 4294967295 ] && [ "$TT" -ge 1 ] && [ "$TT" -le 4294967295 ] || { echo "ERROR=table_id_range"; exit 1; }
+[ "$BP" -ge 1 ] && [ "$BP" -le 32765 ] && [ "$PP" -ge 1 ] && [ "$PP" -le 32765 ] && [ "$TP" -ge 1 ] && [ "$TP" -le 32765 ] || { echo "ERROR=priority_range"; exit 1; }
+[ "$BP" != "$PP" ] && [ "$BP" != "$TP" ] && [ "$PP" != "$TP" ] || { echo "ERROR=duplicate_priorities"; exit 1; }
 
 status(){
  ifstatus "$1" 2>/dev/null
@@ -55,9 +66,9 @@ cat >"$OUT" <<EOF2
 ip route replace default via $PGW dev $PDEV table $PT
 ip route replace default via $SGW dev $SDEV table $ST
 ip route replace local 0.0.0.0/0 dev lo table $TT
-ip rule add priority 98 fwmark $BM lookup $PT # primary mark
-ip rule add priority 99 fwmark $PM lookup $ST
-ip rule add priority 100 fwmark $TM lookup $TT
+ip rule add priority $BP fwmark $BM lookup $PT # primary mark
+ip rule add priority $PP fwmark $PM lookup $ST
+ip rule add priority $TP fwmark $TM lookup $TT
 EOF2
 
 echo "ROUTING_PLAN_OK=$OUT"
