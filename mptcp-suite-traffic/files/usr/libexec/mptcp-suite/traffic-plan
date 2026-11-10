@@ -12,7 +12,7 @@ cat >"$OUT" <<EOF
 table inet mptcp_suite {
  chain policy_prerouting {
   type filter hook prerouting priority mangle; policy accept;
-  ip saddr @bypass_src meta mark set $BM
+  ip saddr @bypass_src return
   ip saddr @primary_src meta mark set $BM
   ip saddr @secondary_src meta mark set $PM
   ip saddr @tproxy_src meta mark set $TM

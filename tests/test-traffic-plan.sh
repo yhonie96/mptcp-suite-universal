@@ -16,6 +16,7 @@ chmod +x "$T/bin/uci"; PATH="$T/bin:$PATH"; export PATH
 sh "$SRC" "$T" "$T/ok.nft" >/dev/null
 grep -q 'table inet mptcp_suite' "$T/ok.nft"
 grep -q 'meta mark set 0x4A01' "$T/ok.nft"
+  grep -q 'ip saddr @bypass_src return' "$T/ok.nft"
 grep -q 'meta mark set 0x4A02' "$T/ok.nft"
 grep -q 'meta mark set 0x4A03' "$T/ok.nft"
 TM=0x4A01 BM=0x4A01 PM=0x4A03; export TM BM PM
