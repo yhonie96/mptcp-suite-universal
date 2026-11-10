@@ -2,25 +2,75 @@
 set -eu
 CFG="${1:-/etc/config}"
 OUT="${2:-/tmp/mptcp-traffic.nft}"
-get(){ uci -c "$CFG" -q get "mptcp_suite.$1"; }
-TM="$(get routing.tproxy_mark)"; BM="$(get routing.bypass_mark)"; PM="$(get routing.policy_mark)"
-[ -n "$TM" ] && [ -n "$BM" ] && [ -n "$PM" ] || { echo ERROR=incomplete_marks; exit 1; }
-[ "$TM" != "$BM" ] && [ "$TM" != "$PM" ] && [ "$BM" != "$PM" ] || { echo ERROR=duplicate_marks; exit 1; }
-valid_mark(){ printf '%s' "$1" | grep -Eq '^0x[0-9A-Fa-f]{1,8}$'; }
-valid_mark "$TM" && valid_mark "$BM" && valid_mark "$PM" || { echo ERROR=invalid_mark; exit 1; }
-cat >"$OUT" <<EOF
-table inet mptcp_suite {
- chain policy_prerouting {
-  type filter hook prerouting priority mangle; policy accept;
-  ip saddr @bypass_src return
-  ip saddr @primary_src meta mark set $BM
-  ip saddr @secondary_src meta mark set $PM
-  ip saddr @tproxy_src meta mark set $TM
- }
- set bypass_src { type ipv4_addr; flags interval; }
- set primary_src { type ipv4_addr; flags interval; }
- set secondary_src { type ipv4_addr; flags interval; }
- set tproxy_src { type ipv4_addr; flags interval; }
+get(){ uci -c "$CFG" -q get "mptcp_suite.$1" || true; }
+
+TM="$(get routing.tproxy_mark)"
+BM="$(get routing.bypass_mark)"
+PM="$(get routing.policy_mark)"
+
+mark(){ printf '%s\n' "$1" | grep -Eq '^0x[0-9A-Fa-f]{1,8}$'; }
+mac(){ printf '%s\n' "$1" | grep -Eiq '^([0-9a-f]{2}:){5}[0-9a-f]{2}$'; }
+ip4(){
+ A="${1%/*}"
+ PFX="${1#*/}"
+ if [ "$PFX" != "$1" ]; then
+  case "$PFX" in *[!0-9]*|"") return 1;; esac
+  [ "$PFX" -le 32 ] || return 1
+ fi
+ printf '%s\n' "$A" | awk -F. '
+ NF != 4 { exit 1 }
+ { for(i=1;i<=4;i++) if($i !~ /^[0-9]+$/ || $i>255) exit 1 }'
 }
-EOF
+
+[ -n "$TM" ] && [ -n "$BM" ] && [ -n "$PM" ] ||
+ { echo ERROR=incomplete_marks; exit 1; }
+mark "$TM" && mark "$BM" && mark "$PM" ||
+ { echo ERROR=invalid_mark; exit 1; }
+[ "$TM" != "$BM" ] && [ "$TM" != "$PM" ] && [ "$BM" != "$PM" ] ||
+ { echo ERROR=duplicate_marks; exit 1; }
+
+SECTIONS="$(uci -c "$CFG" -q show mptcp_suite |
+ grep '=traffic_rule' | cut -d. -f2 | cut -d= -f1)"
+
+{
+ echo 'table inet mptcp_suite {'
+ echo ' chain policy_prerouting {'
+ echo '  type filter hook prerouting priority mangle; policy accept;'
+ echo '  fib daddr type local return'
+ echo '  ip daddr { 10.0.0.0/8, 127.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16 } return'
+ echo '  udp dport 53 return'
+ echo '  tcp dport 53 return'
+
+ for S in $SECTIONS; do
+  [ "$(get "$S.enabled")" = 1 ] || continue
+  POLICY="$(get "$S.policy")"
+
+  case "$POLICY" in
+   bypass) ACTION='return' ;;
+   primary) ACTION="meta mark set $BM return" ;;
+   secondary) ACTION="meta mark set $PM return" ;;
+   tproxy) ACTION="meta mark set $TM return" ;;
+   *) echo "ERROR=invalid_policy:$S" >&2; exit 1 ;;
+  esac
+
+  IPS="$(get "$S.src_ip")"
+  MACS="$(get "$S.src_mac")"
+  [ -n "$IPS$MACS" ] || { echo "ERROR=empty_source:$S" >&2; exit 1; }
+
+  for X in $IPS; do
+   ip4 "$X" || { echo "ERROR=invalid_ip:$S:$X" >&2; exit 1; }
+   echo "  ip saddr $X $ACTION"
+  done
+
+  for X in $MACS; do
+   mac "$X" || { echo "ERROR=invalid_mac:$S:$X" >&2; exit 1; }
+   echo "  ether saddr $X $ACTION"
+  done
+ done
+
+ echo ' }'
+ echo '}'
+} >"$OUT"
+
 echo "TRAFFIC_PLAN_OK=$OUT"
+echo "NFT_CHECK_COMMAND=nft --check --file $OUT"
