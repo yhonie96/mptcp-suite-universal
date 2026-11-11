@@ -9,6 +9,12 @@ SECONDARY_GW="${6:-}"
 SECONDARY_METRIC="${7:-}"
 TABLE="${8:-}"
 
+number(){ case "$1" in ""|*[!0-9]*) return 1;; esac; }
+[ -n "$PRIMARY_DEV" ] && [ -n "$PRIMARY_GW" ] &&
+[ -n "$SECONDARY_DEV" ] && [ -n "$SECONDARY_GW" ] &&
+number "$PRIMARY_METRIC" && number "$SECONDARY_METRIC" &&
+number "$TABLE" || { echo "ERROR=invalid_parameters"; exit 1; }
+
 case "$ACTION" in
  FAILOVER)
   echo "ip route del default via $PRIMARY_GW dev $PRIMARY_DEV metric $PRIMARY_METRIC"
