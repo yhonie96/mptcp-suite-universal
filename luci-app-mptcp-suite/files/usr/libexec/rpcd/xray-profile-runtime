@@ -98,20 +98,42 @@ case "$1" in
  call)
   case "$2" in
    self_test)
-    main_ok=0
-    five_ok=0
+    LIST="/tmp/xray-profile-selftest-$$"
+    uci -q show mptcp_profiles |
+     awk -F "[.=]" '$0 ~ /^mptcp_profiles\.[^.]+=profile$/ {print $2}' >"$LIST"
 
-    xray run -test -c /etc/xray/config.json \
-     >/dev/null 2>&1 && main_ok=1
-    xray run -test -c /etc/xray-5mbps/config.json \
-     >/dev/null 2>&1 && five_ok=1
+    total=0
+    invalid=0
 
     json_init
-    json_add_boolean ok "$([ "$main_ok" -eq 1 ] &&
-     [ "$five_ok" -eq 1 ] && echo 1 || echo 0)"
-    json_add_string message "Self-test selesai tanpa perubahan"
-    json_add_boolean main_valid "$main_ok"
-    json_add_boolean limit5_valid "$five_ok"
+    json_add_array profiles
+
+    while IFS= read -r pid; do
+     [ -n "$pid" ] || continue
+     total=$((total+1))
+     cfg="$(uci -q get mptcp_profiles.$pid.config)"
+     valid=0
+
+     [ -s "$cfg" ] &&
+      xray run -test -c "$cfg" >/dev/null 2>&1 &&
+      valid=1
+
+     [ "$valid" -eq 1 ] || invalid=$((invalid+1))
+
+     json_add_object ""
+     json_add_string id "$pid"
+     json_add_string config "$cfg"
+     json_add_boolean valid "$valid"
+     json_close_object
+    done <"$LIST"
+
+    rm -f "$LIST"
+    json_close_array
+
+    json_add_boolean ok "$([ "$invalid" -eq 0 ] && echo 1 || echo 0)"
+    json_add_string message "Self-test profil selesai tanpa perubahan"
+    json_add_int profile_count "$total"
+    json_add_int invalid_count "$invalid"
     json_add_boolean changed 0
     json_dump
    ;;
