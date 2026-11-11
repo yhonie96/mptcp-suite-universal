@@ -55,7 +55,7 @@ restore_profiles() {
 direct_mode() {
  mkdir -p "$DIR"
  if [ "${1:-}" != reuse ]; then
-  "$PROFILE_BACKUP" || return 1
+  "$PROFILE_BACKUP" >/tmp/mptcp-profile-backup.log 2>&1 || return 1
  fi
  [ -s "$MANIFEST" ] || return 1
  cleanup_staged
@@ -91,7 +91,7 @@ direct_mode() {
  ip mptcp endpoint flush >/dev/null 2>&1 || true
 
  if ! nft -f /usr/share/bsbf/bsbf_bonding.nft ||
-    ! "$PROFILE_RESTART" ||
+    ! "$PROFILE_RESTART" >/tmp/mptcp-profile-restart.log 2>&1 ||
     ! curl -4 -sS --max-time 10 -o /dev/null \
       https://connectivitycheck.gstatic.com/generate_204; then
   restore_profiles >/dev/null 2>&1 || true
@@ -111,7 +111,7 @@ tunnel_mode() {
 
  nft -f /usr/share/bsbf/bsbf_bonding.nft || return 1
  /etc/init.d/bsbf-mptcp restart >/dev/null 2>&1 || true
- "$PROFILE_RESTART" || return 1
+ "$PROFILE_RESTART" >/tmp/mptcp-profile-restart.log 2>&1 || return 1
  timeout 30 /usr/sbin/mptcp-reconnect \
   >/tmp/mptcp-resume-ui.log 2>&1 || return 1
 
