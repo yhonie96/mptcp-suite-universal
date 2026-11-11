@@ -18,11 +18,26 @@ snapshot(){
  } >"$SNAP"
 }
 
+run_actions(){
+ CMDS="$("$APPLY" "$@")" || return 1
+ OLDIFS="$IFS"; IFS='
+'
+ for CMD in $CMDS; do
+  case "$CMD" in
+   NO_CHANGE) ;;
+   "ip route del default via "*|"ip route replace default via "*)
+    IFS="$OLDIFS"; set -- $CMD; IFS='
+'
+    "$@" || return 1
+   ;;
+   *) echo "ERROR=unsafe_command"; return 5 ;;
+  esac
+ done
+ IFS="$OLDIFS"
+}
+
 case "$MODE" in
- --dry-run)
-  snapshot "$@"
-  exec "$APPLY" "$@"
- ;;
+ --dry-run) snapshot "$@"; exec "$APPLY" "$@" ;;
  --apply)
   [ "${MPTCP_FAILOVER_APPLY:-0}" = 1 ] || { echo "ERROR=apply_locked"; exit 4; }
   snapshot "$@"
@@ -33,24 +48,13 @@ case "$MODE" in
    KEEP) TARGET="${2:-}"; ROLLBACK=KEEP ;;
    *) echo "ERROR=invalid_action"; exit 1 ;;
   esac
-  CMDS="$("$APPLY" "$@")"
-  printf "%s
-" "$CMDS" | while IFS= read -r CMD; do
-   [ "$CMD" = "NO_CHANGE" ] || sh -c "$CMD"
-  done
+  run_actions "$@" || exit $?
   CODE="$(curl --interface "$TARGET" -4 -sS --connect-timeout 3 --max-time 8 -o /dev/null -w "%{http_code}" https://connectivitycheck.gstatic.com/generate_204)"
-  if [ "$CODE" != 204 ]; then
-   "$APPLY" "$ROLLBACK" "${2:-}" "${3:-}" "${4:-}" "${5:-}" "${6:-}" "${7:-}" "${8:-}" |
-    while IFS= read -r CMD; do
-     [ "$CMD" = "NO_CHANGE" ] || sh -c "$CMD"
-    done
-   echo "ERROR=validation_failed_rollback_done"
-   exit 3
-  fi
+  [ "$CODE" = 204 ] || {
+   run_actions "$ROLLBACK" "${2:-}" "${3:-}" "${4:-}" "${5:-}" "${6:-}" "${7:-}" "${8:-}"
+   echo "ERROR=validation_failed_rollback_done"; exit 3
+  }
   echo "APPLY_OK=$ACTION"
  ;;
- *)
-  echo "ERROR=invalid_mode"
-  exit 1
- ;;
+ *) echo "ERROR=invalid_mode"; exit 1 ;;
 esac
