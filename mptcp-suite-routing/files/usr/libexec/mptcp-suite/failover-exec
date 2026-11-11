@@ -2,7 +2,7 @@
 set -eu
 MODE="${1:---dry-run}"
 shift || true
-APPLY=/usr/libexec/mptcp-suite/failover-apply
+APPLY="${MPTCP_FAILOVER_APPLY_BIN:-/usr/libexec/mptcp-suite/failover-apply}"
 LOCK=/tmp/mptcp-failover.lock
 SNAP=/tmp/mptcp-failover.routes
 
@@ -24,8 +24,30 @@ case "$MODE" in
   exec "$APPLY" "$@"
  ;;
  --apply)
-  echo "ERROR=apply_not_enabled"
-  exit 1
+  [ "${MPTCP_FAILOVER_APPLY:-0}" = 1 ] || { echo "ERROR=apply_locked"; exit 4; }
+  snapshot "$@"
+  ACTION="${1:-}"
+  case "$ACTION" in
+   FAILOVER) TARGET="${5:-}"; ROLLBACK=RESTORE ;;
+   RESTORE) TARGET="${2:-}"; ROLLBACK=FAILOVER ;;
+   KEEP) TARGET="${2:-}"; ROLLBACK=KEEP ;;
+   *) echo "ERROR=invalid_action"; exit 1 ;;
+  esac
+  CMDS="$("$APPLY" "$@")"
+  printf "%s
+" "$CMDS" | while IFS= read -r CMD; do
+   [ "$CMD" = "NO_CHANGE" ] || sh -c "$CMD"
+  done
+  CODE="$(curl --interface "$TARGET" -4 -sS --connect-timeout 3 --max-time 8 -o /dev/null -w "%{http_code}" https://connectivitycheck.gstatic.com/generate_204)"
+  if [ "$CODE" != 204 ]; then
+   "$APPLY" "$ROLLBACK" "${2:-}" "${3:-}" "${4:-}" "${5:-}" "${6:-}" "${7:-}" "${8:-}" |
+    while IFS= read -r CMD; do
+     [ "$CMD" = "NO_CHANGE" ] || sh -c "$CMD"
+    done
+   echo "ERROR=validation_failed_rollback_done"
+   exit 3
+  fi
+  echo "APPLY_OK=$ACTION"
  ;;
  *)
   echo "ERROR=invalid_mode"
