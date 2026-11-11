@@ -163,6 +163,7 @@ call)
   json_add_int endpoint "$EP"
   json_add_int subflow "$SF"
   json_add_boolean xray "$XRAY"
+  json_add_int profile_count "$COUNT"
   json_add_string backup normal
   json_add_boolean paused "$([ -e "$PAUSED" ] && echo 1 || echo 0)"
   json_dump

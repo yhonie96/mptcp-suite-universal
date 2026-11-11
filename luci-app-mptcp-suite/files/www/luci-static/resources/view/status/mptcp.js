@@ -34,6 +34,11 @@ return view.extend({
    var sources=s.sources||[];
    var activeSources=sources.filter(function(x){return x.up;}).length;
    var active=!h.paused;
+   var actionAttrs={
+    class:'btn cbi-button cbi-button-apply ms-action'
+   };
+   if(Number(h.profile_count||0)===0)
+    actionAttrs.disabled='';
    var internet=h.http==='204';
 
    function stat(label,value,good){
@@ -95,10 +100,8 @@ return view.extend({
       stat('Endpoint',h.endpoint||0,(h.endpoint||0)>0||h.paused),
       stat('Subflow aktif',h.subflow||0,(h.subflow||0)>0||h.paused)
      ]),
-     E('button',{
-      class:'btn cbi-button cbi-button-apply ms-action',
+     E('button',Object.assign(actionAttrs,{
       click:function(ev){
-       var b=ev.currentTarget;
        var b=ev.currentTarget;
        var progressTimer=null;
        function delay(){return new Promise(function(ok){setTimeout(ok,2000);});}
@@ -137,7 +140,7 @@ return view.extend({
         b.disabled=false;
        });
       }
-     },active?'Jeda MPTCP':'Periksa & Aktifkan MPTCP')
+     }),Number(h.profile_count||0)===0?'Buat Profil Xray Dahulu':(active?'Jeda MPTCP':'Periksa & Aktifkan MPTCP'))
     ]),
 
     E('div',{class:'ms-section'},[
