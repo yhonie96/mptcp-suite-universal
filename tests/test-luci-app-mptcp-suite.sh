@@ -55,3 +55,11 @@ grep -Fq 'setup-hero' "$SETUP"
 grep -Fq "PERAN: '+role" "$SETUP"
 grep -Fq 'height:46px' "$SETUP"
 echo MODERN_SETUP_TEST_OK
+
+SOURCE_UI="$P/files/www/luci-static/resources/view/status/mptcp-source-editor.js"
+grep -Fq 'Atur sumber koneksi dengan aman' "$SOURCE_UI"
+grep -Fq 'DIDUKUNG' "$SOURCE_UI"
+grep -Fq 'BELUM TERDETEKSI' "$SOURCE_UI"
+grep -Fq 'Tidak ada draft perubahan.' "$SOURCE_UI"
+grep -Fq 'Rollback otomatis' "$SOURCE_UI"
+echo MODERN_SOURCE_EDITOR_TEST_OK
