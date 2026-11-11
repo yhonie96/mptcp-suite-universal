@@ -88,3 +88,4 @@ test "$(grep -c paused "$R")" -ge 2
 S="$P/files/etc/init.d/bsbf-endpoint-repair"
 test "$(grep -c paused "$S")" -ge 1
 echo ENDPOINT_PAUSED_GUARD_OK
+grep -Fq "mptcp-reconnect || exit 1" "$AUTO"

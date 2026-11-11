@@ -17,7 +17,7 @@ start_service() {
      ping -I "$D" -c1 -W2 1.1.1.1 >/dev/null 2>&1 || READY=0
    done
    if [ "$COUNT" -ge 2 ] && [ "$READY" = 1 ]; then
-    /usr/sbin/mptcp-reconnect
+    /usr/sbin/mptcp-reconnect || exit 1
     logger -t mptcp-autoreconnect "boot reconnect selesai devices=$DEVICES"
     exit 0
    fi
