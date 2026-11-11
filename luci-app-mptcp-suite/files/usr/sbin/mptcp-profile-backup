@@ -1,0 +1,35 @@
+#!/bin/sh
+set -eu
+
+DIR=/etc/mptcp-suite
+LIST="/tmp/mptcp-profile-backup-$$"
+MANIFEST="$DIR/tunnel-profiles.tsv"
+TMPMANIFEST="/tmp/tunnel-profiles-$$.tsv"
+trap 'rm -f "$LIST" "$TMPMANIFEST"' EXIT INT TERM
+
+/usr/sbin/mptcp-profile-list >"$LIST"
+COUNT=0
+: >"${TMPMANIFEST}"
+
+while IFS="$(printf '\t')" read -r ID CFG SVC VT FT; do
+ [ -n "$ID" ] || continue
+ COUNT=$((COUNT+1))
+ BACKUP="$DIR/tunnel-$ID.json"
+
+ [ -s "$CFG" ] || { echo "ERROR=missing_config:$ID"; exit 1; }
+ xray run -test -c "$CFG" >/dev/null 2>&1 ||
+  { echo "ERROR=invalid_config:$ID"; exit 1; }
+
+ printf '%s\t%s\t%s\t%s\t%s\t%s\n' \
+  "$ID" "$CFG" "$SVC" "$VT" "$FT" "$BACKUP" >>"${TMPMANIFEST}"
+
+ [ "${1:-}" = check ] || cp -p "$CFG" "$BACKUP"
+done <"$LIST"
+
+if [ "${1:-}" != check ]; then
+ mkdir -p "$DIR"
+ mv "${TMPMANIFEST}" "$MANIFEST"
+ chmod 600 "$MANIFEST"
+fi
+
+echo "PROFILE_BACKUP_OK count=$COUNT mode=${1:-apply}"
