@@ -36,3 +36,13 @@ AUTO="$P/files/etc/init.d/mptcp-autoreconnect"
 grep -Fq '[ -e /etc/mptcp-suite/paused ]' "$AUTO"
 grep -Fq 'reconnect boot dilewati' "$AUTO"
 echo PAUSED_REBOOT_GUARD_TEST_OK
+
+DASH="$P/files/www/luci-static/resources/view/status/mptcp.js"
+grep -Fq "FULL TUNNEL VPS" "$DASH"
+grep -Fq "DIRECT PER JALUR" "$DASH"
+grep -Fq "activeSources+' aktif dari '" "$DASH"
+grep -Fq "active?'Bonding'" "$DASH"
+grep -Fq "waitReady(15)" "$DASH"
+grep -Fq "Memulihkan tunnel..." "$DASH"
+grep -Fq "Memeriksa internet..." "$DASH"
+echo MODERN_DASHBOARD_TEST_OK

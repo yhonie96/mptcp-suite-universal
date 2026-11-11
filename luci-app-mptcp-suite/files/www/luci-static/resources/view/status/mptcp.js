@@ -9,9 +9,9 @@ var settings=rpc.declare({object:'mptcp-manager',method:'settings',expect:{}});
 var testPath=rpc.declare({
  object:'mptcp-manager',method:'test',params:['iface'],expect:{}
 });
-var resumeCheck=rpc.declare({object:"mptcp",method:"resume_check",expect:{}});
-var resumeMptcp=rpc.declare({object:"mptcp",method:"resume",expect:{}});
-var pauseMptcp=rpc.declare({object:"mptcp",method:"pause",expect:{}});
+var resumeCheck=rpc.declare({object:'mptcp',method:'resume_check',expect:{}});
+var resumeMptcp=rpc.declare({object:'mptcp',method:'resume',expect:{}});
+var pauseMptcp=rpc.declare({object:'mptcp',method:'pause',expect:{}});
 
 function size(n){
  n=Number(n)||0;
@@ -27,97 +27,178 @@ return view.extend({
  load:loadAll,
 
  render:function(initial){
-  var root=E('div',{});
+  var root=E('div',{class:'ms-wrap'});
 
   function draw(d){
    var h=d[0]||{}, s=d[1]||{}, primary=s.primary||'';
    var sources=s.sources||[];
+   var activeSources=sources.filter(function(x){return x.up;}).length;
+   var active=!h.paused;
+   var internet=h.http==='204';
+
+   function stat(label,value,good){
+    return E('div',{class:'ms-stat'},[
+     E('span',{class:'ms-stat-label'},label),
+     E('strong',{class:good===false?'ms-warn':'ms-good'},String(value))
+    ]);
+   }
 
    root.replaceChildren(
     E('style',{},[
-     '.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}',
-     '.card{padding:16px;margin:12px 0;border:1px solid #555;border-radius:12px}',
-     '.ok{color:#55c878}.warn{color:#e5b94f}',
-     '.head{display:flex;justify-content:space-between;align-items:center;gap:8px}',
-     '.card .btn{width:100%;margin-top:10px}'
+     '.ms-wrap{max-width:1100px;margin:auto}',
+     '.ms-title{margin:4px 0 16px;font-size:28px;font-weight:800}',
+     '.ms-hero{position:relative;overflow:hidden;padding:22px;border-radius:20px;color:#fff;box-shadow:0 12px 30px rgba(0,0,0,.22);background:linear-gradient(135deg,'+(active?'#155e75,#2563eb':'#92400e,#ea580c')+')}',
+     '.ms-hero:after{content:"";position:absolute;width:220px;height:220px;border-radius:50%;right:-80px;top:-100px;background:rgba(255,255,255,.12)}',
+     '.ms-hero-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;position:relative;z-index:1}',
+     '.ms-mode{font-size:23px;font-weight:850;letter-spacing:.4px}',
+     '.ms-badge{padding:7px 12px;border-radius:999px;background:rgba(255,255,255,.18);font-size:12px;font-weight:800}',
+     '.ms-desc{margin:10px 0 18px;opacity:.92;line-height:1.55;position:relative;z-index:1}',
+     '.ms-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;position:relative;z-index:1}',
+     '.ms-stat{padding:12px;border-radius:13px;background:rgba(0,0,0,.16);backdrop-filter:blur(5px)}',
+     '.ms-stat-label{display:block;font-size:11px;opacity:.75;margin-bottom:5px;text-transform:uppercase;letter-spacing:.7px}',
+     '.ms-stat strong{font-size:19px}',
+     '.ms-good{color:#a7f3d0}.ms-warn{color:#fde68a}',
+     '.ms-action{width:100%;margin-top:16px!important;padding:12px!important;border-radius:12px!important;font-weight:800!important;position:relative;z-index:1}',
+     '.ms-section{display:flex;justify-content:space-between;align-items:center;margin:24px 2px 10px}',
+     '.ms-section h3{margin:0;font-size:19px}',
+     '.ms-section span{font-size:12px;opacity:.65}',
+     '.ms-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:13px}',
+     '.ms-wan{padding:17px;border:1px solid rgba(127,127,127,.25);border-radius:17px;background:linear-gradient(145deg,rgba(127,127,127,.08),rgba(127,127,127,.02));box-shadow:0 6px 18px rgba(0,0,0,.09)}',
+     '.ms-wan-head{display:flex;justify-content:space-between;gap:10px;align-items:center}',
+     '.ms-wan-name{font-size:20px;font-weight:800}',
+     '.ms-online,.ms-offline{padding:5px 9px;border-radius:999px;font-size:11px;font-weight:800}',
+     '.ms-online{color:#86efac;background:rgba(34,197,94,.14)}',
+     '.ms-offline{color:#fca5a5;background:rgba(239,68,68,.14)}',
+     '.ms-device{margin:7px 0 14px;font-size:13px;opacity:.68}',
+     '.ms-info{display:grid;grid-template-columns:1fr 1fr;gap:8px}',
+     '.ms-info div{padding:9px;border-radius:10px;background:rgba(127,127,127,.08)}',
+     '.ms-info span{display:block;font-size:10px;opacity:.6;text-transform:uppercase;margin-bottom:3px}',
+     '.ms-role{display:inline-block;margin-top:12px;padding:5px 9px;border-radius:9px;background:rgba(59,130,246,.13);color:#93c5fd;font-size:11px;font-weight:700}',
+     '.ms-test{width:100%;margin-top:13px!important;border-radius:11px!important}',
+     '.ms-refresh{width:100%;margin-top:15px!important;border-radius:11px!important}',
+     '@media(max-width:600px){.ms-title{font-size:25px}.ms-stats{grid-template-columns:1fr 1fr}.ms-stat:last-child{grid-column:1/3}.ms-mode{font-size:20px}}'
     ].join('')),
-    E('h2',{},'Dashboard MPTCP Suite'),
-    E('div',{class:'card'},[
-     E('h3',{},h.paused?'Internet Langsung':'MPTCP Aktif'),
-     E('p',{class:h.http==='204'?'ok':'warn'},
-      'Internet: '+(h.http==='204'?'Normal':'Gangguan')),
-     E('p',{},'Mode: '+(s.mode==='primary'?'Utama + Cadangan':'Gabungkan Semua')),
-     E('p',{},'Jalur utama: '+(primary||'-')),
-     E('p',{},'Endpoint: '+(h.endpoint||0)+' | Subflow aktif: '+(h.subflow||0)),
+
+    E('h2',{class:'ms-title'},'Dashboard MPTCP Suite'),
+
+    E('div',{class:'ms-hero'},[
+     E('div',{class:'ms-hero-head'},[
+      E('div',{class:'ms-mode'},active?'FULL TUNNEL VPS':'DIRECT PER JALUR'),
+      E('span',{class:'ms-badge'},active?'MPTCP AKTIF':'MPTCP DIJEDA')
+     ]),
+     E('div',{class:'ms-desc'},
+      active
+       ? 'HTTP, HTTPS, YouTube, dan trafik umum diamankan melalui VPS menggunakan gabungan jalur MPTCP.'
+       : 'Tunnel VPS dihentikan. Trafik keluar langsung melalui ISP berdasarkan aturan setiap jalur.'),
+     E('div',{class:'ms-stats'},[
+      stat('Internet',internet?'Normal':'Gangguan',internet),
+      stat('Endpoint',h.endpoint||0,(h.endpoint||0)>0||h.paused),
+      stat('Subflow aktif',h.subflow||0,(h.subflow||0)>0||h.paused)
+     ]),
      E('button',{
-      class:'btn cbi-button cbi-button-apply',
+      class:'btn cbi-button cbi-button-apply ms-action',
+      click:function(ev){
+       var b=ev.currentTarget;
+       var b=ev.currentTarget;
+       var progressTimer=null;
+       function delay(){return new Promise(function(ok){setTimeout(ok,2000);});}
+       function waitReady(left){
+        return status().then(function(s){
+         if(!s.paused && s.http==="204" && Number(s.endpoint)>=1 && Number(s.subflow)>=1)
+          return {ok:true,message:"MPTCP aktif; status terverifikasi"};
+         if(left<=1)throw new Error("Aktivasi belum sehat setelah 30 detik");
+         return delay().then(function(){return waitReady(left-1);});
+        },function(){
+         if(left<=1)throw new Error("Status MPTCP tidak dapat diverifikasi");
+         return delay().then(function(){return waitReady(left-1);});
+        });
+       }
+       b.disabled=true;
+       var run;
+       if(h.paused){
+        run=resumeCheck().then(function(r){
+         if(!r.ok)throw new Error(r.message||"Precheck gagal");
+         var stages=["Memulihkan tunnel...","Membentuk endpoint...","Memeriksa internet..."];
+         var stage=0;
+         b.textContent="Memvalidasi konfigurasi...";
+         progressTimer=setInterval(function(){
+          b.textContent=stages[Math.min(stage++,stages.length-1)];
+         },4000);
+         return resumeMptcp().then(function(){return waitReady(15);},function(){return waitReady(15);});
+        });
+       }else run=pauseMptcp();
+       return run.then(function(r){
+        ui.addNotification(null,E("p",{},r.message||"Selesai"),r.ok?"info":"error");
+        return loadAll().then(draw);
+       }).catch(function(e){
+        ui.addNotification(null,E("p",{},e.message),"error");
+       }).finally(function(){
+        if(progressTimer)clearInterval(progressTimer);
+        b.disabled=false;
+       });
+      }
+     },active?'Jeda MPTCP':'Periksa & Aktifkan MPTCP')
+    ]),
+
+    E('div',{class:'ms-section'},[
+     E('h3',{},'Jalur Internet'),
+     E('span',{},activeSources+' aktif dari '+sources.length+' sumber')
+    ]),
+
+    E('div',{class:'ms-grid'},sources.map(function(x){
+     var role=!x.up?'Tidak aktif':(active?'Bonding':(x.backup?'Cadangan':'Direct'));
+     var attrs={
+      class:'btn cbi-button cbi-button-action ms-test',
       click:function(ev){
        var b=ev.currentTarget;
        b.disabled=true;
-       var run=h.paused ? resumeCheck().then(function(r){
-        if(!r.ok) throw new Error(r.message||'Precheck gagal');
-        b.textContent='Mengaktifkan MPTCP...';
-        return resumeMptcp();
-       }) : pauseMptcp();
-       return run.then(function(r){
-        ui.addNotification(null,E('p',{},r.message||'Selesai'),r.ok?'info':'error');
-        return loadAll().then(draw);
-       }).catch(function(e){
-        ui.addNotification(null,E('p',{},e.message),'error');
-       }).finally(function(){b.disabled=false;});
-      }
-     },h.paused?'Periksa & Aktifkan MPTCP':'Jeda MPTCP')
-    ]),
-    E('div',{class:'grid'},sources.map(function(x){
-     var role=x.backup?'Cadangan':
-      (x.device===primary?'Utama':'Normal');
-     var attrs={
-      class:'btn cbi-button cbi-button-action',
-      click:function(ev){
-       var b=ev.currentTarget;
-       b.disabled=true;b.textContent='Menguji...';
+       b.textContent='Menguji jalur...';
        return testPath(x.device).then(function(r){
         ui.addNotification(null,E('p',{},
-         r.ok?x.name+' terhubung ke internet':
-          x.name+' gagal mencapai internet'),r.ok?'info':'error');
+         r.ok?x.name+' terhubung ke internet':x.name+' gagal mencapai internet'),
+         r.ok?'info':'error');
        }).finally(function(){
-        b.disabled=!x.up;b.textContent='Uji Jalur';
+        b.disabled=!x.up;
+        b.textContent='Uji Jalur';
        });
       }
      };
      if(!x.up)attrs.disabled='';
 
-     return E('div',{class:'card'},[
-      E('div',{class:'head'},[
-       E('h3',{},x.name),
-       E('strong',{class:x.up?'ok':'warn'},x.up?'AKTIF':'TIDAK AKTIF')
+     return E('div',{class:'ms-wan'},[
+      E('div',{class:'ms-wan-head'},[
+       E('div',{class:'ms-wan-name'},x.name),
+       E('span',{class:x.up?'ms-online':'ms-offline'},x.up?'AKTIF':'TERPUTUS')
       ]),
-      E('p',{},x.device+' · '+x.ip),
-      E('p',{},'Gateway: '+x.gateway),
-      E('p',{},'Metric: '+x.metric+' · Peran: '+role),
-      E('p',{},'Download: '+size(x.rx_bytes)),
-      E('p',{},'Upload: '+size(x.tx_bytes)),
+      E('div',{class:'ms-device'},x.device+' · '+(x.ip||'Tanpa IP')),
+      E('div',{class:'ms-info'},[
+       E('div',{},[E('span',{},'Gateway'),x.gateway||'-']),
+       E('div',{},[E('span',{},'Metric'),String(x.metric||'-')]),
+       E('div',{},[E('span',{},'Download'),size(x.rx_bytes)]),
+       E('div',{},[E('span',{},'Upload'),size(x.tx_bytes)])
+      ]),
+      E('span',{class:'ms-role'},'PERAN: '+role.toUpperCase()),
       E('button',attrs,'Uji Jalur')
      ]);
     })),
+
     E('button',{
-     class:'btn cbi-button',
-     style:'margin-top:14px',
+     class:'btn cbi-button ms-refresh',
      click:function(ev){
       var b=ev.currentTarget;
-      b.disabled=true;b.textContent='Memuat...';
+      b.disabled=true;
+      b.textContent='Memuat data...';
       return loadAll().then(draw).finally(function(){
-       b.disabled=false;b.textContent='Muat Ulang';
+       b.disabled=false;
+       b.textContent='Muat Ulang Dashboard';
       });
      }
-    },'Muat Ulang')
+    },'Muat Ulang Dashboard')
    );
   }
 
   draw(initial);
-  poll.add(function(){
-   return loadAll().then(draw);
-  },10);
+  poll.add(function(){return loadAll().then(draw);},10);
   return root;
  },
 
