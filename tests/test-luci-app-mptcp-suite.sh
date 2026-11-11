@@ -2,15 +2,18 @@
 set -eu
 P=luci-app-mptcp-suite
 test -f "$P/Makefile"
-test "$(find "$P/files" -type f | wc -l)" -ge 41
+for F in  usr/libexec/rpcd/mptcp  usr/libexec/rpcd/xray-profiles  usr/libexec/rpcd/xray-profile-builder  usr/libexec/rpcd/xray-profile-runtime  www/luci-static/resources/view/status/mptcp.js  www/luci-static/resources/view/status/xray-profiles.js  etc/config/mptcp_profiles
+do
+ test -f "$P/files/$F"
+done
 test "$(awk 'NR==26{print substr($0,1,1)=="\t"}' "$P/Makefile")" = 1
 for F in "$P"/files/usr/libexec/rpcd/* "$P"/files/usr/sbin/* "$P"/files/etc/init.d/*; do
  sh -n "$F"
  test -x "$F"
 done
 ! grep -RqiE '103\.147|192\.168\.(1|8)\.|eth1|phy0-sta0|WAN1|wwan|BEGIN.*PRIVATE' "$P/files"
-grep -q 'json_add_string uuid ""' "$P/files/usr/libexec/rpcd/xray-manager"
-grep -q 'json_add_string uuid ""' "$P/files/usr/libexec/rpcd/xray-5mbps-manager"
+grep -q 'json_add_string uuid ""' mptcp-suite-dual-xray/files/usr/libexec/rpcd/xray-manager
+grep -q 'json_add_string uuid ""' mptcp-suite-dual-xray/files/usr/libexec/rpcd/xray-5mbps-manager
 echo LUCI_APP_MPTCP_SUITE_TEST_OK
 
 ROOT="$(mktemp -d)"
@@ -25,7 +28,7 @@ rm -rf "$ROOT/usr" "$ROOT/www" "$ROOT/etc/init.d" "$ROOT/etc/mptcp-suite"
 test -f "$ROOT/etc/config/mptcp_profiles"
 echo LUCI_APP_INSTALL_UPGRADE_UNINSTALL_OK
 
-POLICY="$P/files/usr/sbin/xray-policy-apply-draft"
+POLICY="mptcp-suite-dual-xray/files/usr/sbin/xray-policy-apply-draft"
 grep -q '^HD=false$' "$POLICY"
 grep -Fq '.domain[0]=="geosite:youtube"' "$POLICY"
 grep -q '.outboundTag=$tunnel' "$POLICY"
