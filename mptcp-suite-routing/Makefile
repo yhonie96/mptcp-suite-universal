@@ -19,7 +19,7 @@ endef
 
 define Package/mptcp-suite-routing/install
 	$(INSTALL_DIR) $(1)/usr/libexec/mptcp-suite
-	$(INSTALL_BIN) ./files/usr/libexec/mptcp-suite/routing-plan $(1)/usr/libexec/mptcp-suite/
+	$(INSTALL_BIN) ./files/usr/libexec/mptcp-suite/* $(1)/usr/libexec/mptcp-suite/
 endef
 
 $(eval $(call BuildPackage,mptcp-suite-routing))
