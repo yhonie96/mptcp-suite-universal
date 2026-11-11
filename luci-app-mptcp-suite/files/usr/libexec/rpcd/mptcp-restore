@@ -128,40 +128,46 @@ PY
     stamp="$(date +%Y%m%d-%H%M%S)"
     snap="$DIR/snapshot-safe-$stamp.tar.gz"
 
-    tar -czf "$snap" \
-     /etc/bsbf \
-     /www/luci-static/resources/view/status/mptcp.js \
-     /www/luci-static/resources/view/status/mptcp-manager.js \
-     /www/luci-static/resources/view/status/mptcp-settings.js \
-     /www/luci-static/resources/view/status/xray-manager.js \
-     /usr/libexec/rpcd/mptcp \
-     /usr/libexec/rpcd/mptcp-manager \
-     /usr/libexec/rpcd/xray-manager \
-     /usr/share/luci/menu.d/luci-app-mptcp-suite.json \
-     /usr/share/rpcd/acl.d/luci-app-mptcp.json \
-     /usr/share/rpcd/acl.d/luci-app-mptcp-manager.json \
-     /usr/share/rpcd/acl.d/luci-app-xray-manager.json \
-     /www/luci-static/resources/view/status/mptcp-source-editor.js \
-     /www/luci-static/resources/view/status/mptcp-backup.js \
-     /www/luci-static/resources/view/status/xray-5mbps-manager.js \
-     /www/luci-static/resources/view/status/xray-profiles.js \
-     /usr/libexec/rpcd/mptcp-source-editor \
-     /usr/libexec/rpcd/xray-5mbps-manager \
-     /usr/libexec/rpcd/xray-profiles \
-     /usr/libexec/rpcd/xray-profile-builder \
-     /usr/libexec/rpcd/xray-profile-runtime \
-     /usr/libexec/rpcd/netcontrol-profiles \
-     /usr/share/rpcd/acl.d/luci-app-mptcp-source-editor.json \
-     /usr/share/rpcd/acl.d/luci-app-xray-5mbps-manager.json \
-     /usr/share/rpcd/acl.d/luci-app-xray-profiles.json \
-     /usr/share/rpcd/acl.d/luci-app-xray-profile-builder.json \
-     /usr/share/rpcd/acl.d/luci-app-xray-profile-runtime.json \
-     /usr/share/rpcd/acl.d/luci-app-netcontrol-profiles.json \
-     /usr/share/rpcd/ucode/netcontrol.uc \
-     /usr/bin/netcontrolctl \
-     /usr/lib/netcontrol/bsbf-5mbps-sync.sh \
-     /www/luci-static/resources/view/netcontrol/devices.js \
-     2>/dev/null
+    SNAPLIST="/tmp/mptcp-restore-snapshot-$$"
+    : >"$SNAPLIST"
+    [ -e "/etc/bsbf" ] && echo "etc/bsbf" >>"$SNAPLIST"
+    [ -e "/www/luci-static/resources/view/status/mptcp.js" ] && echo "www/luci-static/resources/view/status/mptcp.js" >>"$SNAPLIST"
+    [ -e "/www/luci-static/resources/view/status/mptcp-manager.js" ] && echo "www/luci-static/resources/view/status/mptcp-manager.js" >>"$SNAPLIST"
+    [ -e "/www/luci-static/resources/view/status/mptcp-settings.js" ] && echo "www/luci-static/resources/view/status/mptcp-settings.js" >>"$SNAPLIST"
+    [ -e "/www/luci-static/resources/view/status/xray-manager.js" ] && echo "www/luci-static/resources/view/status/xray-manager.js" >>"$SNAPLIST"
+    [ -e "/usr/libexec/rpcd/mptcp" ] && echo "usr/libexec/rpcd/mptcp" >>"$SNAPLIST"
+    [ -e "/usr/libexec/rpcd/mptcp-manager" ] && echo "usr/libexec/rpcd/mptcp-manager" >>"$SNAPLIST"
+    [ -e "/usr/libexec/rpcd/xray-manager" ] && echo "usr/libexec/rpcd/xray-manager" >>"$SNAPLIST"
+    [ -e "/usr/share/luci/menu.d/luci-app-mptcp-suite.json" ] && echo "usr/share/luci/menu.d/luci-app-mptcp-suite.json" >>"$SNAPLIST"
+    [ -e "/usr/share/rpcd/acl.d/luci-app-mptcp.json" ] && echo "usr/share/rpcd/acl.d/luci-app-mptcp.json" >>"$SNAPLIST"
+    [ -e "/usr/share/rpcd/acl.d/luci-app-mptcp-manager.json" ] && echo "usr/share/rpcd/acl.d/luci-app-mptcp-manager.json" >>"$SNAPLIST"
+    [ -e "/usr/share/rpcd/acl.d/luci-app-xray-manager.json" ] && echo "usr/share/rpcd/acl.d/luci-app-xray-manager.json" >>"$SNAPLIST"
+    [ -e "/www/luci-static/resources/view/status/mptcp-source-editor.js" ] && echo "www/luci-static/resources/view/status/mptcp-source-editor.js" >>"$SNAPLIST"
+    [ -e "/www/luci-static/resources/view/status/mptcp-backup.js" ] && echo "www/luci-static/resources/view/status/mptcp-backup.js" >>"$SNAPLIST"
+    [ -e "/www/luci-static/resources/view/status/xray-5mbps-manager.js" ] && echo "www/luci-static/resources/view/status/xray-5mbps-manager.js" >>"$SNAPLIST"
+    [ -e "/www/luci-static/resources/view/status/xray-profiles.js" ] && echo "www/luci-static/resources/view/status/xray-profiles.js" >>"$SNAPLIST"
+    [ -e "/usr/libexec/rpcd/mptcp-source-editor" ] && echo "usr/libexec/rpcd/mptcp-source-editor" >>"$SNAPLIST"
+    [ -e "/usr/libexec/rpcd/xray-5mbps-manager" ] && echo "usr/libexec/rpcd/xray-5mbps-manager" >>"$SNAPLIST"
+    [ -e "/usr/libexec/rpcd/xray-profiles" ] && echo "usr/libexec/rpcd/xray-profiles" >>"$SNAPLIST"
+    [ -e "/usr/libexec/rpcd/xray-profile-builder" ] && echo "usr/libexec/rpcd/xray-profile-builder" >>"$SNAPLIST"
+    [ -e "/usr/libexec/rpcd/xray-profile-runtime" ] && echo "usr/libexec/rpcd/xray-profile-runtime" >>"$SNAPLIST"
+    [ -e "/usr/libexec/rpcd/netcontrol-profiles" ] && echo "usr/libexec/rpcd/netcontrol-profiles" >>"$SNAPLIST"
+    [ -e "/usr/share/rpcd/acl.d/luci-app-mptcp-source-editor.json" ] && echo "usr/share/rpcd/acl.d/luci-app-mptcp-source-editor.json" >>"$SNAPLIST"
+    [ -e "/usr/share/rpcd/acl.d/luci-app-xray-5mbps-manager.json" ] && echo "usr/share/rpcd/acl.d/luci-app-xray-5mbps-manager.json" >>"$SNAPLIST"
+    [ -e "/usr/share/rpcd/acl.d/luci-app-xray-profiles.json" ] && echo "usr/share/rpcd/acl.d/luci-app-xray-profiles.json" >>"$SNAPLIST"
+    [ -e "/usr/share/rpcd/acl.d/luci-app-xray-profile-builder.json" ] && echo "usr/share/rpcd/acl.d/luci-app-xray-profile-builder.json" >>"$SNAPLIST"
+    [ -e "/usr/share/rpcd/acl.d/luci-app-xray-profile-runtime.json" ] && echo "usr/share/rpcd/acl.d/luci-app-xray-profile-runtime.json" >>"$SNAPLIST"
+    [ -e "/usr/share/rpcd/acl.d/luci-app-netcontrol-profiles.json" ] && echo "usr/share/rpcd/acl.d/luci-app-netcontrol-profiles.json" >>"$SNAPLIST"
+    [ -e "/usr/share/rpcd/ucode/netcontrol.uc" ] && echo "usr/share/rpcd/ucode/netcontrol.uc" >>"$SNAPLIST"
+    [ -e "/usr/bin/netcontrolctl" ] && echo "usr/bin/netcontrolctl" >>"$SNAPLIST"
+    [ -e "/usr/lib/netcontrol/bsbf-5mbps-sync.sh" ] && echo "usr/lib/netcontrol/bsbf-5mbps-sync.sh" >>"$SNAPLIST"
+    [ -e "/www/luci-static/resources/view/netcontrol/devices.js" ] && echo "www/luci-static/resources/view/netcontrol/devices.js" >>"$SNAPLIST"
+    tar -C / -czf "$snap" -T "$SNAPLIST" || {
+     rm -f "$snap" "$SNAPLIST"
+     reply 0 "Gagal membuat snapshot sebelum restore"
+     exit 0
+    }
+    rm -f "$SNAPLIST"
 
     chmod 600 "$snap"
 
