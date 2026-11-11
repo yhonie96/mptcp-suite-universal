@@ -1,0 +1,39 @@
+#!/bin/sh
+set -eu
+
+LIST="/tmp/mptcp-profile-restart-$$"
+trap 'rm -f "$LIST"' EXIT INT TERM
+
+/usr/sbin/mptcp-profile-list >"$LIST"
+COUNT=0
+
+while IFS="$(printf '\t')" read -r ID CFG SVC VT FT; do
+ [ -n "$ID" ] || continue
+ COUNT=$((COUNT+1))
+
+ [ -s "$CFG" ] || {
+  echo "ERROR=missing_config:$ID"
+  exit 1
+ }
+
+ xray run -test -c "$CFG" >/dev/null 2>&1 || {
+  echo "ERROR=invalid_config:$ID"
+  exit 1
+ }
+
+ [ -x "/etc/init.d/$SVC" ] || {
+  echo "ERROR=missing_service:$ID"
+  exit 1
+ }
+
+ if [ "${1:-}" = check ]; then
+  continue
+ fi
+
+ /etc/init.d/"$SVC" restart >/dev/null 2>&1 || {
+  echo "ERROR=restart_failed:$ID"
+  exit 1
+ }
+done <"$LIST"
+
+echo "PROFILE_RESTART_OK count=$COUNT"
