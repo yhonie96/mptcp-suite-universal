@@ -1,0 +1,19 @@
+#!/bin/sh
+set -eu
+MODE="${1:---dry-run}"
+shift || true
+APPLY=/usr/libexec/mptcp-suite/failover-apply
+
+case "$MODE" in
+ --dry-run)
+  exec "$APPLY" "$@"
+ ;;
+ --apply)
+  echo "ERROR=apply_not_enabled"
+  exit 1
+ ;;
+ *)
+  echo "ERROR=invalid_mode"
+  exit 1
+ ;;
+esac
