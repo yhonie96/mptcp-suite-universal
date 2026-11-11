@@ -1,0 +1,26 @@
+#!/bin/sh
+set -eu
+P="${1:-}"
+S="${2:-}"
+CURRENT="${3:-}"
+FAIL="${4:-3}"
+RECOVER="${5:-3}"
+
+number(){ case "$1" in ""|*[!0-9]*) return 1;; esac; }
+number "$P" && number "$S" && number "$FAIL" && number "$RECOVER" ||
+ { echo ERROR=invalid_input; exit 1; }
+[ "$FAIL" -gt 0 ] && [ "$RECOVER" -gt 0 ] ||
+ { echo ERROR=invalid_threshold; exit 1; }
+case "$CURRENT" in primary|secondary) ;; *)
+ echo ERROR=invalid_state; exit 1 ;;
+esac
+
+if [ "$CURRENT" = primary ] &&
+ [ "$P" -eq 0 ] && [ "$S" -ge "$FAIL" ]; then
+ echo FAILOVER
+elif [ "$CURRENT" = secondary ] &&
+ [ "$P" -ge "$RECOVER" ]; then
+ echo RESTORE
+else
+ echo KEEP
+fi
