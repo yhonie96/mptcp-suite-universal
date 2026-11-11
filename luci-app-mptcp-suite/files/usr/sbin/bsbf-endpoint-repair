@@ -1,5 +1,6 @@
 #!/bin/ash
 
+[ -e /etc/mptcp-suite/paused ] && exit 0
 SUPPORTED=/run/bsbf-mptcp-supported
 
 [ -s "$SUPPORTED" ] || exit 0
@@ -22,6 +23,7 @@ do
     logger -t bsbf-endpoint-repair \
         "memperbaiki endpoint iface=$IFACE ip=$IP"
 
+    [ -e /etc/mptcp-suite/paused ] \&\& exit 0
     # Bersihkan endpoint lama interface ini, lalu tambahkan IP terbaru.
     /usr/sbin/bsbf-mptcp-helper remove "$IFACE" 2>/dev/null || true
     /usr/sbin/bsbf-mptcp-helper add "$IFACE"
