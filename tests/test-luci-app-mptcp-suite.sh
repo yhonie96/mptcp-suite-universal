@@ -70,3 +70,11 @@ grep -Fq 'xp-wizard,.xp-card' "$XP"
 grep -Fq 'height:44px' "$XP"
 grep -Fq 'Hapus Profil (Dilindungi)' "$XP"
 echo MODERN_XRAY_PROFILES_TEST_OK
+
+BACKUP_UI="$P/files/www/luci-static/resources/view/status/mptcp-backup.js"
+grep -Fq 'linear-gradient(135deg,#4338ca,#2563eb)' "$BACKUP_UI"
+grep -Fq 'backup-create' "$BACKUP_UI"
+grep -Fq 'Restore Aman' "$BACKUP_UI"
+grep -Fq 'Restore UI/BSBF' "$BACKUP_UI"
+grep -Fq 'izin file 600' "$BACKUP_UI"
+echo MODERN_BACKUP_UI_TEST_OK

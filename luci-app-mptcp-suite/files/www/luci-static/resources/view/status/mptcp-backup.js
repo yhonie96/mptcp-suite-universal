@@ -165,33 +165,40 @@ return view.extend({
 
   return E([], [
    E('style', {}, `
-.backup-summary {
- padding:16px;margin-bottom:16px;border-radius:12px;
- color:#fff;background:linear-gradient(135deg,#23395d,#315b8a);
+.backup-summary{
+ padding:21px;margin-bottom:16px;border-radius:19px;color:#fff;
+ background:linear-gradient(135deg,#4338ca,#2563eb);
+ box-shadow:0 11px 28px rgba(0,0,0,.2)
 }
-.backup-lock {
- padding:12px;margin:12px 0;border-left:5px solid #38a169;
- background:rgba(56,161,105,.10);
+.backup-lock{
+ padding:14px;margin:13px 0;border-left:5px solid #22c55e;
+ background:rgba(34,197,94,.10);border-radius:10px;line-height:1.5
 }
-.backup-card {
- padding:15px;margin:13px 0;border-radius:12px;
+.backup-card{
+ padding:18px;margin:14px 0;border-radius:17px;
  border:1px solid rgba(127,127,127,.25);
- background:var(--background-color-high,#292929);
+ background:linear-gradient(145deg,rgba(127,127,127,.09),rgba(127,127,127,.02));
+ box-shadow:0 6px 18px rgba(0,0,0,.09)
 }
-.backup-name {
- font-size:17px;font-weight:700;overflow-wrap:anywhere;
+.backup-name{font-size:18px;font-weight:850;overflow-wrap:anywhere}
+.backup-info{
+ display:grid;gap:7px;margin:12px 0;padding:11px;
+ border-radius:10px;background:rgba(127,127,127,.08);
+ opacity:.78;overflow-wrap:anywhere
 }
-.backup-info {
- display:grid;gap:5px;margin:10px 0;opacity:.75;
- overflow-wrap:anywhere;
-}
-.backup-actions {
+.backup-actions{
  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
- gap:8px;margin-top:13px;
+ gap:9px;margin-top:14px
 }
-.backup-actions .btn { width:100% }
-@media(max-width:480px) {
- .backup-actions { grid-template-columns:1fr }
+.backup-actions .btn{
+ width:100%;border-radius:11px!important;padding:10px!important
+}
+.backup-create{
+ width:100%;border-radius:11px!important;padding:11px!important;
+ font-weight:800!important
+}
+@media(max-width:480px){
+ .backup-actions{grid-template-columns:1fr}
 }
 `),
 
@@ -212,7 +219,7 @@ return view.extend({
    ]),
 
    E('button', {
-    class: 'btn cbi-button cbi-button-action',
+    class: 'btn cbi-button cbi-button-action backup-create',
     click: function() {
      return createBackup().then(function(result) {
       notify(result);
