@@ -46,3 +46,12 @@ grep -Fq "waitReady(15)" "$DASH"
 grep -Fq "Memulihkan tunnel..." "$DASH"
 grep -Fq "Memeriksa internet..." "$DASH"
 echo MODERN_DASHBOARD_TEST_OK
+
+SETUP="$P/files/www/luci-static/resources/view/status/mptcp-setup.js"
+grep -Fq 'Bonding semua jalur aktif' "$SETUP"
+grep -Fq 'Jalur utama + cadangan' "$SETUP"
+grep -Fq "primaryWrap.style.display" "$SETUP"
+grep -Fq 'setup-hero' "$SETUP"
+grep -Fq "PERAN: '+role" "$SETUP"
+grep -Fq 'height:46px' "$SETUP"
+echo MODERN_SETUP_TEST_OK
