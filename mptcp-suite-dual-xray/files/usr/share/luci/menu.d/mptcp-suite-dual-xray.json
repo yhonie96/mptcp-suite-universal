@@ -1,0 +1,32 @@
+{
+  "admin/status/mptcp-suite/xray": {
+    "action": {
+      "type": "view",
+      "path": "status/xray-manager"
+    }
+  },
+  "admin/status/mptcp-suite/xray5": {
+    "action": {
+      "type": "view",
+      "path": "status/xray-5mbps-manager"
+    },
+    "depends": {
+      "acl": [
+        "luci-app-xray-5mbps-manager"
+      ]
+    }
+  },
+  "admin/status/mptcp-suite/traffic-rules": {
+    "title": "Kebijakan Trafik",
+    "order": 40,
+    "action": {
+      "type": "view",
+      "path": "status/xray-traffic-rules"
+    },
+    "depends": {
+      "acl": [
+        "luci-app-xray-traffic-rules"
+      ]
+    }
+  }
+}

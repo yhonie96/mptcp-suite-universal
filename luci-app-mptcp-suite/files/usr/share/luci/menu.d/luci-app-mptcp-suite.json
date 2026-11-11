@@ -10,8 +10,6 @@
         "luci-app-mptcp",
         "luci-app-mptcp-manager",
         "luci-app-mptcp-source-editor",
-        "luci-app-xray-manager",
-        "luci-app-xray-5mbps-manager",
         "luci-app-mptcp-backup",
         "luci-app-mptcp-restore",
         "luci-app-xray-profile-builder",
@@ -25,12 +23,6 @@
     "action": {
       "type": "view",
       "path": "status/mptcp"
-    }
-  },
-  "admin/status/mptcp-suite/xray": {
-    "action": {
-      "type": "view",
-      "path": "status/xray-manager"
     }
   },
   "admin/status/mptcp-suite/backup": {
@@ -60,17 +52,6 @@
       ]
     }
   },
-  "admin/status/mptcp-suite/xray5": {
-    "action": {
-      "type": "view",
-      "path": "status/xray-5mbps-manager"
-    },
-    "depends": {
-      "acl": [
-        "luci-app-xray-5mbps-manager"
-      ]
-    }
-  },
   "admin/status/mptcp-suite/profiles": {
     "title": "Profil Xray",
     "order": 50,
@@ -83,19 +64,6 @@
         "luci-app-xray-profiles",
         "luci-app-xray-profile-builder",
         "luci-app-xray-profile-runtime"
-      ]
-    }
-  },
-  "admin/status/mptcp-suite/traffic-rules": {
-    "title": "Kebijakan Trafik",
-    "order": 40,
-    "action": {
-      "type": "view",
-      "path": "status/xray-traffic-rules"
-    },
-    "depends": {
-      "acl": [
-        "luci-app-xray-traffic-rules"
       ]
     }
   }
