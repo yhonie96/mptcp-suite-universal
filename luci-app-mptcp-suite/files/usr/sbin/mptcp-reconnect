@@ -22,12 +22,11 @@ ip rule show | grep -q 'fwmark 0x1 lookup 10000' ||
 ip route replace local 0.0.0.0/0 dev lo table 10000
 
 sleep 12
-/etc/init.d/xray restart
-/etc/init.d/xray-5mbps restart
+/usr/sbin/mptcp-profile-restart || exit 1
 sleep 3
 
 N="$(ip mptcp endpoint show | grep -c .)"
-if [ "$N" -ge 1 ] && pgrep -f '/etc/xray/config.json' >/dev/null; then
+if [ "$N" -ge 1 ]; then
  logger -t "$TAG" "Berhasil, endpoint=$N"
  exit 0
 fi
