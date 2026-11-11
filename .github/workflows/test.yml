@@ -28,7 +28,7 @@ jobs:
             test -x "$F"
           done
 
-          test "$(awk 'index($0,"\t")==1{n++}END{print n+0}' "$P/Makefile")" -eq 4
+          test "$(awk 'index($0,"\t")==1{n++}END{print n+0}' "$P/Makefile")" -eq 5
 
       - name: Reject router-specific hardcodes
         shell: bash
@@ -61,7 +61,7 @@ jobs:
           install -m 600 "$P/files/etc/config/mptcp_suite" "$ROOT/etc/config/"
           install -m 755 "$P"/files/usr/libexec/mptcp-suite/* "$ROOT/usr/libexec/mptcp-suite/"
 
-          test "$(find "$ROOT" -type f | wc -l)" -eq 4
+          test "$(find "$ROOT" -type f | wc -l)" -eq 5
           test "$(stat -c %a "$ROOT/etc/config/mptcp_suite")" = 600
 
           for F in "$ROOT"/usr/libexec/mptcp-suite/*; do
