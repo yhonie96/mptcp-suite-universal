@@ -31,3 +31,8 @@ grep -Fq '.domain[0]=="geosite:youtube"' "$POLICY"
 grep -q '.outboundTag=$tunnel' "$POLICY"
 grep -q '.network=="tcp" and .port=="80"' "$POLICY"
 echo FULL_TUNNEL_POLICY_TEST_OK
+
+AUTO="$P/files/etc/init.d/mptcp-autoreconnect"
+grep -Fq '[ -e /etc/mptcp-suite/paused ]' "$AUTO"
+grep -Fq 'reconnect boot dilewati' "$AUTO"
+echo PAUSED_REBOOT_GUARD_TEST_OK
