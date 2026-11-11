@@ -93,16 +93,6 @@ return view.extend({
 
    var actions=[];
 
-   if(p.id==='main'||p.id==='limit5'){
-    actions.push(E('a',{
-     class:'btn cbi-button cbi-button-action',
-     href:L.url(
-      'admin','status','mptcp-suite',
-      p.id==='main'?'xray':'xray5'
-     )
-    },'Kelola Akun'));
-   }
-
    if(!p.protected){
     actions.push(E('button',{
      class:'btn cbi-button',
@@ -202,17 +192,6 @@ return view.extend({
       });
      }
     },'Hapus Lengkap'));
-   }
-   else {
-    actions.push(E('button',{
-     class:'btn cbi-button cbi-button-negative',
-     click:function(){
-      notify({
-       ok:false,
-       message:'Profil sistem dilindungi dan tidak dapat dihapus.'
-      });
-     }
-    },'Hapus Profil (Dilindungi)'));
    }
 
    return E('div',{class:'xp-card'},[

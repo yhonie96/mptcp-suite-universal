@@ -104,8 +104,7 @@ case "$1" in
      ss -lnt 2>/dev/null |
       grep -q "127.0.0.1:$local_port " && listening=1
 
-     protected=0
-     case "$section" in main|limit5) protected=1 ;; esac
+     protected="$(uci -q get mptcp_profiles.$section.protected)"; protected="${protected:-0}"
 
      json_add_object ""
      json_add_string id "$section"
@@ -223,6 +222,7 @@ UCI
 
     if [ "$is_new" -eq 1 ]; then
      uci set mptcp_profiles.$id.enabled='0'
+     uci set mptcp_profiles.$id.protected='0'
      uci set mptcp_profiles.$id.config="/etc/xray-profiles/$id.json"
      uci set mptcp_profiles.$id.service="xray-profile-$id"
      uci set mptcp_profiles.$id.outbound_tag="vless-$id"
@@ -252,15 +252,14 @@ UCI
      exit 0
     }
 
-    case "$id" in
-     main|limit5)
-      reply 0 "Profil sistem aktif dilindungi"
-      exit 0
-     ;;
-    esac
 
     profile_exists "$id" || {
      reply 0 "Profil tidak ditemukan"
+     exit 0
+    }
+
+    [ "$(uci -q get mptcp_profiles.$id.protected)" = 1 ] && {
+     reply 0 "Profil sistem dilindungi"
      exit 0
     }
 

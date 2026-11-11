@@ -68,7 +68,9 @@ XP="$P/files/www/luci-static/resources/view/status/xray-profiles.js"
 grep -Fq 'linear-gradient(135deg,#4338ca,#2563eb)' "$XP"
 grep -Fq 'xp-wizard,.xp-card' "$XP"
 grep -Fq 'height:44px' "$XP"
-grep -Fq 'Hapus Profil (Dilindungi)' "$XP"
+! grep -Fq 'Hapus Profil (Dilindungi)' "$XP"
+! grep -Fq "p.id==='main'" "$XP"
+! grep -Fq "p.id==='limit5'" "$XP"
 echo MODERN_XRAY_PROFILES_TEST_OK
 
 BACKUP_UI="$P/files/www/luci-static/resources/view/status/mptcp-backup.js"

@@ -27,7 +27,7 @@ load_profile() {
 }
 
 protected_profile() {
- case "$1" in main|limit5) return 0 ;; *) return 1 ;; esac
+ [ "$(uci -q get mptcp_profiles.$1.protected)" = 1 ]
 }
 
 tunnel_test() {
