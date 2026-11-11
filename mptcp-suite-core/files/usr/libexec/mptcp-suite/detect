@@ -1,21 +1,22 @@
 #!/bin/sh
 . /lib/functions.sh
+GATEWAY="${MPTCP_MAIN_GATEWAY_BIN:-/usr/libexec/mptcp-suite/main-gateway}"
 
 echo "=== LAN ==="
 printf 'network=lan device=%s\n' "$(uci -q get network.lan.device)"
 
 echo "=== KANDIDAT WAN ==="
 detect_iface() {
- local s="$1" up dev ip gw metric
+ local s="$1" status up dev ip gw metric
  [ "$s" = lan ] && return
  [ "$s" = loopback ] && return
 
- up="$(ifstatus "$s" 2>/dev/null | jsonfilter -e '@.up')"
+ status="$(ifstatus "$s" 2>/dev/null)" || return
+ up="$(printf "%s\n" "$status" | jsonfilter -e '@.up')"
  [ "$up" = true ] || return
-
- dev="$(ifstatus "$s" | jsonfilter -e '@.l3_device')"
- ip="$(ifstatus "$s" | jsonfilter -e '@["ipv4-address"][0].address')"
- gw="$(ifstatus "$s" | jsonfilter -e '@.route[0].nexthop')"
+ dev="$(printf "%s\n" "$status" | jsonfilter -e '@.l3_device')"
+ ip="$(printf "%s\n" "$status" | jsonfilter -e '@["ipv4-address"][0].address')"
+ gw="$(printf "%s\n" "$status" | "$GATEWAY" 2>/dev/null)"
  metric="$(uci -q get network.$s.metric)"
 
  [ -n "$dev" ] || return
