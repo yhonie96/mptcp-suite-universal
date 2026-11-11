@@ -1,0 +1,24 @@
+{
+  "luci-app-mptcp-manager": {
+    "description": "Kelola dan uji sumber internet MPTCP",
+    "read": {
+      "ubus": {
+        "mptcp-manager": [
+          "sources",
+          "test",
+          "settings",
+          "health"
+        ]
+      }
+    },
+    "write": {
+      "ubus": {
+        "mptcp-manager": [
+          "set_backup",
+          "clean_runtime",
+          "set_mode"
+        ]
+      }
+    }
+  }
+}

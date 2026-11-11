@@ -1,0 +1,15 @@
+{
+ "luci-app-mptcp-restore": {
+  "description": "Preview dan restore aman MPTCP Suite",
+  "read": {
+   "ubus": {
+    "mptcp-restore": [ "preview" ]
+   }
+  },
+  "write": {
+   "ubus": {
+    "mptcp-restore": [ "restore_safe" ]
+   }
+  }
+ }
+}

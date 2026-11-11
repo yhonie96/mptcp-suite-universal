@@ -1,0 +1,313 @@
+#!/bin/sh
+. /usr/share/libubox/jshn.sh
+
+TUNNEL=/etc/mptcp-suite/tunnel-main.json
+ACTIVE=/etc/xray/config.json
+DRAFT=/etc/xray/config.candidate.json
+
+reply() {
+json_init
+json_add_boolean ok "$1"
+json_add_string message "$2"
+json_dump
+}
+
+tunnel_test() {
+ cfg=/etc/xray/config.json
+ tmp="/tmp/xray-main-test-$$.json"
+ log="/tmp/xray-main-test-$$.log"
+
+ jq '
+  .inbounds=[{
+   "tag":"test-socks","listen":"127.0.0.1","port":12348,
+   "protocol":"socks","settings":{"auth":"noauth","udp":false}
+  }] |
+  .routing={"domainStrategy":"AsIs","rules":[{
+   "type":"field","inboundTag":["test-socks"],
+   "outboundTag":"vless"
+  }]}
+ ' "$cfg" >"$tmp" || { rm -f "$tmp" "$log"; return 1; }
+
+ chmod 600 "$tmp"
+ xray run -test -c "$tmp" >"$log" 2>&1 ||
+  { rm -f "$tmp" "$log"; return 1; }
+
+ xray run -c "$tmp" >"$log" 2>&1 &
+ pid=$!
+ sleep 3
+
+ code="$(curl --socks5-hostname 127.0.0.1:12348 \
+  -4 -sS --max-time 12 -o /dev/null -w "%{http_code}" \
+  https://connectivitycheck.gstatic.com/generate_204 2>/dev/null)"
+
+ kill "$pid" 2>/dev/null
+ wait "$pid" 2>/dev/null
+ rm -f "$tmp" "$log"
+ [ "$code" = 204 ]
+}
+
+case "$1" in
+list)
+echo '{
+"status":{},
+"test_tunnel":{},
+"save_draft":{
+"server":"String",
+"port":"Integer",
+"uuid":"String",
+"sni":"String",
+"reality_password":"String",
+"short_id":"String",
+"fingerprint":"String"
+},
+"validate_draft":{},
+"apply_safe":{},
+"discard_draft":{}
+}'
+;;
+call)
+case "$2" in
+status)
+[ -e /etc/mptcp-suite/paused ] && DISPLAY="/etc/mptcp-suite/tunnel-main.json" || DISPLAY="$ACTIVE"
+SERVER="$(jq -r '.outbounds[]|select(.tag=="freedom")|.settings.redirect // ""' "$DISPLAY" 2>/dev/null)"
+SNI="$(jq -r '.outbounds[]|select(.tag=="vless")|.streamSettings.realitySettings.serverName // ""' "$DISPLAY" 2>/dev/null)"
+FP="$(jq -r '.outbounds[]|select(.tag=="vless")|.streamSettings.realitySettings.fingerprint // ""' "$DISPLAY" 2>/dev/null)"
+XRAY=0
+pgrep -f '/etc/xray/config.json' >/dev/null && XRAY=1
+DRAFT_EXISTS=0
+[ -s "$DRAFT" ] && DRAFT_EXISTS=1
+
+json_init
+json_add_string server "$SERVER"
+json_add_string sni "$SNI"
+json_add_string fingerprint "$FP"
+json_add_boolean xray "$XRAY"
+json_add_boolean draft "$DRAFT_EXISTS"
+uuid_len="$(jq -r --arg t 'vless' '.outbounds[]|select(.tag==$t)|.settings.id // ""|length' "$DISPLAY")"
+pass_len="$(jq -r --arg t 'vless' '.outbounds[]|select(.tag==$t)|.streamSettings.realitySettings.password // ""|length' "$DISPLAY")"
+short_len="$(jq -r --arg t 'vless' '.outbounds[]|select(.tag==$t)|.streamSettings.realitySettings.shortId // ""|length' "$DISPLAY")"
+json_add_int uuid_length "${uuid_len:-0}"
+json_add_string uuid ""
+json_add_string reality_password ""
+json_add_string short_id ""
+json_add_int reality_length "${pass_len:-0}"
+json_add_int short_id_length "${short_len:-0}"
+json_dump
+;;
+test_tunnel)
+if tunnel_test; then
+ reply 1 "Tunnel Xray utama normal (HTTP 204)"
+else
+ reply 0 "Tunnel Xray utama gagal"
+fi
+;;
+save_draft)
+json_load "$(cat)"
+json_get_var SERVER server
+json_get_var PORT port
+json_get_var UUID uuid
+json_get_var SNI sni
+json_get_var PASS reality_password
+json_get_var SHORT short_id
+json_get_var FP fingerprint
+current_uuid="$(jq -r --arg t 'vless' '.outbounds[]|select(.tag==$t)|.settings.id // ""' "$ACTIVE")"
+current_pass="$(jq -r --arg t 'vless' '.outbounds[]|select(.tag==$t)|.streamSettings.realitySettings.password // ""' "$ACTIVE")"
+current_short="$(jq -r --arg t 'vless' '.outbounds[]|select(.tag==$t)|.streamSettings.realitySettings.shortId // ""' "$ACTIVE")"
+[ -n "${UUID}" ] || UUID="$current_uuid"
+[ -n "${PASS}" ] || PASS="$current_pass"
+[ -n "${SHORT}" ] || SHORT="$current_short"
+
+case "$SERVER" in
+''|*[!A-Za-z0-9.:-]*) reply 0 "Alamat VPS tidak valid"; exit 0;;
+esac
+
+case "$PORT" in
+''|*[!0-9]*) reply 0 "Port tidak valid"; exit 0;;
+esac
+[ "$PORT" -ge 1 ] 2>/dev/null && [ "$PORT" -le 65535 ] 2>/dev/null || {
+reply 0 "Port harus 1-65535"
+exit 0
+}
+
+echo "$UUID" | grep -Eq '^[0-9a-fA-F-]{36}$' || {
+reply 0 "UUID tidak valid"
+exit 0
+}
+
+[ -e /etc/mptcp-suite/paused ] && SOURCE="$TUNNEL" || SOURCE="$ACTIVE"
+cp -a "$SOURCE" "$DRAFT" || {
+reply 0 "Gagal membuat draft"
+exit 0
+}
+
+jq --arg redirect "$SERVER:$PORT" \
+   --arg uuid "$UUID" \
+   --arg sni "$SNI" \
+   --arg pass "$PASS" \
+   --arg short "$SHORT" \
+   --arg fp "${FP:-chrome}" '
+(.outbounds[]|select(.tag=="freedom").settings.redirect)=$redirect |
+(.outbounds[]|select(.tag=="vless").settings.id)=$uuid |
+(.outbounds[]|select(.tag=="vless").streamSettings.realitySettings.serverName)=$sni |
+(.outbounds[]|select(.tag=="vless").streamSettings.realitySettings.password)=$pass |
+(.outbounds[]|select(.tag=="vless").streamSettings.realitySettings.shortId)=$short |
+(.outbounds[]|select(.tag=="vless").streamSettings.realitySettings.fingerprint)=$fp
+' "$DRAFT" > "$DRAFT.tmp" || {
+rm -f "$DRAFT" "$DRAFT.tmp"
+reply 0 "Gagal menyusun JSON"
+exit 0
+}
+
+mv "$DRAFT.tmp" "$DRAFT"
+chmod 600 "$DRAFT"
+reply 1 "Draft tersimpan. Akun aktif belum berubah."
+;;
+validate_draft)
+[ -s "$DRAFT" ] || { reply 0 "Draft belum tersedia"; exit 0; }
+jq empty "$DRAFT" >/dev/null 2>&1 || {
+ reply 0 "JSON draft tidak valid"; exit 0
+}
+if xray run -test -c "$DRAFT" >/tmp/xray-draft-check.log 2>&1; then
+ reply 1 "Draft valid. Xray aktif tidak berubah."
+else
+ reply 0 "Validasi gagal. Draft tidak diterapkan."
+fi
+;;
+apply_safe)
+[ -s "$DRAFT" ] || {
+ reply 0 "Draft belum tersedia"
+ exit 0
+}
+
+xray run -test -c "$DRAFT" \
+ >/tmp/xray-main-apply-check.log 2>&1 || {
+ reply 0 "Draft tidak valid; penerapan dibatalkan"
+ exit 0
+}
+
+if [ -e /etc/mptcp-suite/paused ]; then
+ cp -a "$DRAFT" "$TUNNEL.new" || { reply 0 "Gagal menyiapkan cadangan tunnel"; exit 0; }
+ chmod 600 "$TUNNEL.new"
+ mv "$TUNNEL.new" "$TUNNEL"
+ new_redirect=$(jq -r '..|objects|.redirect? // empty' "$TUNNEL" | head -1)
+ uci set mptcp_profiles.main.vps_port="${new_redirect##*:}"
+ uci commit mptcp_profiles
+ rm -f "$DRAFT" "$DRAFT.tmp"
+ reply 1 "Akun tunnel tersimpan. Mode Direct tetap aktif."
+ exit 0
+fi
+stamp="$(date +%Y%m%d-%H%M%S)"
+snapshot="/root/xray-main-before-$stamp.json"
+netsnap="/root/network-before-xray-$stamp"
+bsbfsnap="/root/bsbf-before-xray-$stamp.conf"
+
+cp -a /etc/config/network "$netsnap" &&
+cp -a /etc/bsbf/bsbf-bonding.conf "$bsbfsnap" || {
+ reply 0 "Gagal membuat snapshot sinkronisasi"
+ exit 0
+}
+chmod 600 "$netsnap" "$bsbfsnap"
+
+new_redirect="$(jq -r '..|objects|.redirect? // empty' "$DRAFT" | head -1)"
+new_server="${new_redirect%:*}"
+new_port="${new_redirect##*:}"
+new_uuid="$(jq -r '.outbounds[]|select(.tag=="vless")|.settings.id // empty' "$DRAFT")"
+old_server="$(sed -n 's/^server_ipv4=//p' /etc/bsbf/bsbf-bonding.conf)"
+
+echo "$new_server" | grep -Eq '^[0-9]{1,3}(\.[0-9]{1,3}){3}$' &&
+echo "$new_port" | grep -Eq '^[0-9]+$' &&
+[ -n "$new_uuid" ] || {
+ reply 0 "IP, port, atau UUID draft tidak valid"
+ exit 0
+}
+
+PRIMARY_DEV="$(ip -4 route show default | awk '{m=999999;for(i=1;i<=NF;i++)if($i=="metric")m=$(i+1);if(m<best||best==""){best=m;dev=$5}}END{print dev}')"
+PRIMARY_IFACE="$(ubus list "network.interface.*" | sed "s/network.interface.//" | while read I; do [ "$(ifstatus "$I" 2>/dev/null | jsonfilter -e "@.l3_device")" = "$PRIMARY_DEV" ] && { echo "$I"; break; }; done)"
+PRIMARY_GW="$(ip -4 route show default dev "$PRIMARY_DEV" | awk 'NR==1{print $3}')"
+PRIMARY_SRC="$(ip -4 route get 1.1.1.1 oif "$PRIMARY_DEV" | awk '{for(i=1;i<=NF;i++)if($i=="src"){print $(i+1);exit}}')"
+[ -n "$PRIMARY_DEV" ] && [ -n "$PRIMARY_IFACE" ] && [ -n "$PRIMARY_GW" ] && [ -n "$PRIMARY_SRC" ] || { reply 0 "Jalur utama tidak lengkap"; exit 0; }
+ip route replace "$new_server/32" via "$PRIMARY_GW" dev "$PRIMARY_DEV" src "$PRIMARY_SRC"
+ip route flush cache
+
+cp -a "$ACTIVE" "$snapshot" || {
+ reply 0 "Gagal membuat snapshot"
+ exit 0
+}
+chmod 600 "$snapshot"
+
+cp -a "$DRAFT" "$ACTIVE.new" || {
+ reply 0 "Gagal menyiapkan konfigurasi aktif"
+ exit 0
+}
+chmod 600 "$ACTIVE.new"
+mv "$ACTIVE.new" "$ACTIVE"
+
+/etc/init.d/xray restart \
+ >/tmp/xray-main-restart.log 2>&1
+sleep 4
+
+healthy=1
+
+/etc/init.d/xray status 2>/dev/null |
+ grep -qx running || healthy=0
+
+ss -lnt 2>/dev/null |
+ grep -q '127.0.0.1:12345 ' || healthy=0
+
+xray run -test -c "$ACTIVE" \
+ >/tmp/xray-main-active-check.log 2>&1 || healthy=0
+
+[ "$healthy" -eq 1 ] && tunnel_test || healthy=0
+
+if [ "$healthy" -ne 1 ]; then
+ [ "$new_server" != "$old_server" ] && ip route del "$new_server/32" 2>/dev/null
+ ip route flush cache
+ cp -a "$snapshot" "$ACTIVE"
+ chmod 600 "$ACTIVE"
+
+ /etc/init.d/xray restart \
+  >/tmp/xray-main-rollback.log 2>&1
+ sleep 4
+
+ restored=1
+ /etc/init.d/xray status 2>/dev/null |
+  grep -qx running || restored=0
+ ss -lnt 2>/dev/null |
+  grep -q '127.0.0.1:12345 ' || restored=0
+ [ "$restored" -eq 1 ] && tunnel_test || restored=0
+
+ if [ "$restored" -eq 1 ]; then
+  reply 0 "Penerapan gagal; rollback otomatis berhasil"
+ else
+  reply 0 "Penerapan dan pemulihan gagal; periksa snapshot"
+ fi
+ exit 0
+fi
+
+sed -i  "s/^server_ipv4=.*/server_ipv4=$new_server/;
+  s/^server_port=.*/server_port=$new_port/;
+  s/^uuid=.*/uuid=$new_uuid/"  /etc/bsbf/bsbf-bonding.conf
+
+uci -q delete network.mptcp_suite_vps_route
+uci set network.mptcp_suite_vps_route=route
+uci set network.mptcp_suite_vps_route.target="$new_server/32"
+uci set network.mptcp_suite_vps_route.gateway="$PRIMARY_GW"
+uci set network.mptcp_suite_vps_route.interface="$PRIMARY_IFACE"
+uci commit network
+
+[ "$new_server" != "$old_server" ] &&
+ ip route del "$old_server/32" 2>/dev/null
+ip route replace "$new_server/32" via "$PRIMARY_GW" dev "$PRIMARY_DEV" src "$PRIMARY_SRC"
+ip route flush cache
+
+rm -f "$DRAFT" "$DRAFT.tmp"
+reply 1 "Xray, BSBF, dan route VPS berhasil disinkronkan; snapshot: xray-main-before-$stamp.json"
+;;
+
+discard_draft)
+rm -f "$DRAFT" "$DRAFT.tmp"
+reply 1 "Draft dihapus. Akun aktif tidak berubah."
+;;
+esac
+;;
+esac

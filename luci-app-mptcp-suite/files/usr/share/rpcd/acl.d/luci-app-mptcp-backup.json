@@ -1,0 +1,15 @@
+{
+ "luci-app-mptcp-backup": {
+  "description": "Kelola backup lokal MPTCP Suite",
+  "read": {
+   "ubus": {
+    "mptcp-backup": [ "status", "validate" ]
+   }
+  },
+  "write": {
+   "ubus": {
+    "mptcp-backup": [ "create", "delete" ]
+   }
+  }
+ }
+}

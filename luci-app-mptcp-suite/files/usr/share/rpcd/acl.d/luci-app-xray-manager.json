@@ -1,0 +1,23 @@
+{
+  "luci-app-xray-manager": {
+    "description": "Kelola draft akun Xray",
+    "read": {
+      "ubus": {
+        "xray-manager": [
+          "status",
+          "test_tunnel"
+        ]
+      }
+    },
+    "write": {
+      "ubus": {
+        "xray-manager": [
+          "save_draft",
+          "validate_draft",
+          "discard_draft",
+          "apply_safe"
+        ]
+      }
+    }
+  }
+}

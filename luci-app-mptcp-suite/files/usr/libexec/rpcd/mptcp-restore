@@ -1,0 +1,236 @@
+#!/bin/sh
+. /usr/share/libubox/jshn.sh
+DIR=/root/mptcp-suite-backups
+
+reply() {
+ json_init
+ json_add_boolean ok "$1"
+ json_add_string message "$2"
+ json_dump
+}
+
+valid_name() {
+ case "$1" in
+  mptcp-suite-[0-9]*.tar.gz) return 0 ;;
+  *) return 1 ;;
+ esac
+}
+
+prepare() {
+ file="$DIR/$name"
+ [ -f "$file" ] || return 1
+
+ expected="$(awk '{print $1}' "$file.sha256" 2>/dev/null)"
+ actual="$(sha256sum "$file" | awk '{print $1}')"
+ [ -n "$expected" ] && [ "$expected" = "$actual" ] || return 2
+
+ list="/tmp/mptcp-restore-list.$$"
+ tar -tzf "$file" >"$list" 2>/dev/null || return 3
+ grep -Eq '(^|/)\.\.(/|$)|^/' "$list" && return 4
+ grep -qx './MANIFEST' "$list" || return 5
+
+ tmp="/tmp/mptcp-restore.$$"
+ rm -rf "$tmp"
+ mkdir -p "$tmp"
+ tar -xzf "$file" -C "$tmp" || return 6
+ return 0
+}
+
+case "$1" in
+ list)
+  echo '{
+   "preview":{"name":"String"},
+   "restore_safe":{"name":"String"}
+  }'
+ ;;
+
+ call)
+  json_load "$(cat)"
+  json_get_var name name
+
+  valid_name "$name" || {
+   reply 0 "Nama backup tidak valid"
+   exit 0
+  }
+
+  case "$2" in
+   preview)
+    prepare
+    rc=$?
+    [ "$rc" -eq 0 ] || {
+     reply 0 "Backup gagal divalidasi, kode $rc"
+     exit 0
+    }
+
+    ui=0
+    rpc=0
+    acl=0
+    bsbf=0
+
+    ui="$(find "$tmp/www/luci-static/resources/view/status" \
+     -type f 2>/dev/null | wc -l)"
+    rpc="$(find "$tmp/usr/libexec/rpcd" \
+     -type f 2>/dev/null | wc -l)"
+    acl="$(find "$tmp/usr/share/rpcd/acl.d" \
+     -type f 2>/dev/null | wc -l)"
+    [ -d "$tmp/etc/bsbf" ] && bsbf=1
+
+    json_init
+    json_add_boolean ok 1
+    json_add_string message "Preview aman; rahasia tidak ditampilkan"
+    json_add_int ui "$ui"
+    json_add_int rpc "$rpc"
+    json_add_int acl "$acl"
+    json_add_boolean bsbf "$bsbf"
+    json_add_boolean network_locked 1
+    json_add_boolean xray_locked 1
+    json_add_boolean netcontrol_config_locked 1
+    json_add_boolean profile_registry_locked 1
+    json_dump
+
+    rm -rf "$tmp" "$list"
+   ;;
+
+   restore_safe)
+    prepare
+    rc=$?
+    [ "$rc" -eq 0 ] || {
+     reply 0 "Backup gagal divalidasi, kode $rc"
+     exit 0
+    }
+
+    for f in "$tmp"/usr/libexec/rpcd/mptcp* \
+             "$tmp"/usr/libexec/rpcd/xray*              "$tmp"/usr/libexec/rpcd/netcontrol-profiles; do
+     [ -f "$f" ] || continue
+     sh -n "$f" || {
+      rm -rf "$tmp" "$list"
+      reply 0 "Validasi skrip restore gagal"
+      exit 0
+     }
+    done
+
+    python3 - <<PY
+import json, glob, sys
+files = (
+ glob.glob("$tmp/usr/share/rpcd/acl.d/*.json") +
+ glob.glob("$tmp/usr/share/luci/menu.d/*.json")
+)
+for path in files:
+    with open(path) as f:
+        json.load(f)
+PY
+    [ "$?" -eq 0 ] || {
+     rm -rf "$tmp" "$list"
+     reply 0 "Validasi JSON restore gagal"
+     exit 0
+    }
+
+    stamp="$(date +%Y%m%d-%H%M%S)"
+    snap="$DIR/snapshot-safe-$stamp.tar.gz"
+
+    tar -czf "$snap" \
+     /etc/bsbf \
+     /www/luci-static/resources/view/status/mptcp.js \
+     /www/luci-static/resources/view/status/mptcp-manager.js \
+     /www/luci-static/resources/view/status/mptcp-settings.js \
+     /www/luci-static/resources/view/status/xray-manager.js \
+     /usr/libexec/rpcd/mptcp \
+     /usr/libexec/rpcd/mptcp-manager \
+     /usr/libexec/rpcd/xray-manager \
+     /usr/share/luci/menu.d/luci-app-mptcp-suite.json \
+     /usr/share/rpcd/acl.d/luci-app-mptcp.json \
+     /usr/share/rpcd/acl.d/luci-app-mptcp-manager.json \
+     /usr/share/rpcd/acl.d/luci-app-xray-manager.json \
+     /www/luci-static/resources/view/status/mptcp-source-editor.js \
+     /www/luci-static/resources/view/status/mptcp-backup.js \
+     /www/luci-static/resources/view/status/xray-5mbps-manager.js \
+     /www/luci-static/resources/view/status/xray-profiles.js \
+     /usr/libexec/rpcd/mptcp-source-editor \
+     /usr/libexec/rpcd/xray-5mbps-manager \
+     /usr/libexec/rpcd/xray-profiles \
+     /usr/libexec/rpcd/xray-profile-builder \
+     /usr/libexec/rpcd/xray-profile-runtime \
+     /usr/libexec/rpcd/netcontrol-profiles \
+     /usr/share/rpcd/acl.d/luci-app-mptcp-source-editor.json \
+     /usr/share/rpcd/acl.d/luci-app-xray-5mbps-manager.json \
+     /usr/share/rpcd/acl.d/luci-app-xray-profiles.json \
+     /usr/share/rpcd/acl.d/luci-app-xray-profile-builder.json \
+     /usr/share/rpcd/acl.d/luci-app-xray-profile-runtime.json \
+     /usr/share/rpcd/acl.d/luci-app-netcontrol-profiles.json \
+     /usr/share/rpcd/ucode/netcontrol.uc \
+     /usr/bin/netcontrolctl \
+     /usr/lib/netcontrol/bsbf-5mbps-sync.sh \
+     /www/luci-static/resources/view/netcontrol/devices.js \
+     2>/dev/null
+
+    chmod 600 "$snap"
+
+    files="
+www/luci-static/resources/view/status/mptcp.js
+www/luci-static/resources/view/status/mptcp-manager.js
+www/luci-static/resources/view/status/mptcp-settings.js
+www/luci-static/resources/view/status/xray-manager.js
+usr/libexec/rpcd/mptcp
+usr/libexec/rpcd/mptcp-manager
+usr/libexec/rpcd/xray-manager
+usr/share/luci/menu.d/luci-app-mptcp-suite.json
+usr/share/rpcd/acl.d/luci-app-mptcp.json
+usr/share/rpcd/acl.d/luci-app-mptcp-manager.json
+usr/share/rpcd/acl.d/luci-app-xray-manager.json
+www/luci-static/resources/view/status/mptcp-source-editor.js
+www/luci-static/resources/view/status/mptcp-backup.js
+www/luci-static/resources/view/status/xray-5mbps-manager.js
+www/luci-static/resources/view/status/xray-profiles.js
+usr/libexec/rpcd/mptcp-source-editor
+usr/libexec/rpcd/xray-5mbps-manager
+usr/libexec/rpcd/xray-profiles
+usr/libexec/rpcd/xray-profile-builder
+usr/libexec/rpcd/xray-profile-runtime
+usr/libexec/rpcd/netcontrol-profiles
+usr/share/rpcd/acl.d/luci-app-mptcp-source-editor.json
+usr/share/rpcd/acl.d/luci-app-xray-5mbps-manager.json
+usr/share/rpcd/acl.d/luci-app-xray-profiles.json
+usr/share/rpcd/acl.d/luci-app-xray-profile-builder.json
+usr/share/rpcd/acl.d/luci-app-xray-profile-runtime.json
+usr/share/rpcd/acl.d/luci-app-netcontrol-profiles.json
+usr/share/rpcd/ucode/netcontrol.uc
+usr/bin/netcontrolctl
+usr/lib/netcontrol/bsbf-5mbps-sync.sh
+www/luci-static/resources/view/netcontrol/devices.js
+"
+
+    for path in $files; do
+     [ -f "$tmp/$path" ] || continue
+     cp -a "$tmp/$path" "/$path" || {
+      reply 0 "Penyalinan restore gagal"
+      exit 0
+     }
+    done
+
+    if [ -d "$tmp/etc/bsbf" ]; then
+     mkdir -p /etc/bsbf
+     cp -a "$tmp/etc/bsbf/." /etc/bsbf/
+    fi
+
+    chmod 755 /usr/libexec/rpcd/mptcp* \
+     /usr/libexec/rpcd/xray* \
+     /usr/libexec/rpcd/netcontrol-profiles \
+     /usr/bin/netcontrolctl \
+     /usr/lib/netcontrol/bsbf-5mbps-sync.sh 2>/dev/null
+
+    rm -rf "$tmp" "$list"
+    rm -f /tmp/luci-indexcache
+
+    reply 1 "Restore UI/BSBF selesai; snapshot: snapshot-safe-$stamp.tar.gz"
+
+    (
+     sleep 1
+     /etc/init.d/rpcd reload
+     /etc/init.d/uhttpd reload
+    ) >/dev/null 2>&1 &
+   ;;
+
+   *) reply 0 "Metode tidak tersedia" ;;
+  esac
+ ;;
+esac

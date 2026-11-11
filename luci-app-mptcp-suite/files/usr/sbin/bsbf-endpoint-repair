@@ -1,0 +1,28 @@
+#!/bin/ash
+
+SUPPORTED=/run/bsbf-mptcp-supported
+
+[ -s "$SUPPORTED" ] || exit 0
+
+while read -r IFACE
+do
+    [ -n "$IFACE" ] || continue
+
+    IP="$(ip -4 -o addr show dev "$IFACE" scope global 2>/dev/null |
+        awk 'NR==1 {split($4,a,"/"); print a[1]}')"
+
+    [ -n "$IP" ] || continue
+
+    # Sudah benar, jangan lakukan apa pun.
+    ip mptcp endpoint show |
+        grep -F "$IP " |
+        grep -Fq "dev $IFACE" &&
+        continue
+
+    logger -t bsbf-endpoint-repair \
+        "memperbaiki endpoint iface=$IFACE ip=$IP"
+
+    # Bersihkan endpoint lama interface ini, lalu tambahkan IP terbaru.
+    /usr/sbin/bsbf-mptcp-helper remove "$IFACE" 2>/dev/null || true
+    /usr/sbin/bsbf-mptcp-helper add "$IFACE"
+done <"$SUPPORTED"

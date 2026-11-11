@@ -1,0 +1,29 @@
+{
+  "luci-app-xray-traffic-rules": {
+    "description": "Kelola aturan trafik Xray",
+    "read": {
+      "ubus": {
+        "xray-traffic-rules": [
+          "status"
+        ]
+      },
+      "uci": [
+        "traffic_policy"
+      ]
+    },
+    "write": {
+      "ubus": {
+        "xray-traffic-rules": [
+          "save_draft",
+          "validate_draft",
+          "apply_draft",
+          "discard_draft",
+          "apply_manual"
+        ]
+      },
+      "uci": [
+        "traffic_policy"
+      ]
+    }
+  }
+}

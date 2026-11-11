@@ -1,0 +1,22 @@
+{
+  "luci-app-mptcp-source-editor": {
+    "description": "Editor draft sumber internet MPTCP",
+    "read": {
+      "ubus": {
+        "mptcp-source-editor": [
+          "status",
+          "validate"
+        ]
+      }
+    },
+    "write": {
+      "ubus": {
+        "mptcp-source-editor": [
+          "save",
+          "discard",
+          "apply"
+        ]
+      }
+    }
+  }
+}

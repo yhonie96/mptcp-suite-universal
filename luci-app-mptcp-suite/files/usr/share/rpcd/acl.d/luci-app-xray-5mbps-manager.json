@@ -1,0 +1,23 @@
+{
+  "luci-app-xray-5mbps-manager": {
+    "description": "Kelola draft Xray 5 Mbps",
+    "read": {
+      "ubus": {
+        "xray-5mbps-manager": [
+          "status",
+          "validate_draft",
+          "test_tunnel"
+        ]
+      }
+    },
+    "write": {
+      "ubus": {
+        "xray-5mbps-manager": [
+          "save_draft",
+          "discard_draft",
+          "apply_safe"
+        ]
+      }
+    }
+  }
+}

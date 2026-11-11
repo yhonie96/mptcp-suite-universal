@@ -103,3 +103,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y nftables
           NFT_CHECK=1 sudo -E tests/test-traffic-plan.sh
+
+      - name: Test LuCI MPTCP Suite package
+        shell: bash
+        run: |
+          set -e
+          chmod +x tests/test-luci-app-mptcp-suite.sh
+          tests/test-luci-app-mptcp-suite.sh

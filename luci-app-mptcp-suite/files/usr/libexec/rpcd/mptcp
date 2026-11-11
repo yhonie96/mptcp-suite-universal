@@ -1,0 +1,197 @@
+#!/bin/sh
+. /usr/share/libubox/jshn.sh
+
+DIR=/etc/mptcp-suite
+PAUSED=$DIR/paused
+MAIN=/etc/xray/config.json
+LIMIT=/etc/xray-5mbps/config.json
+TMAIN=$DIR/tunnel-main.json
+TLIMIT=$DIR/tunnel-5mbps.json
+
+reply() {
+ json_init
+ json_add_boolean ok "$1"
+ json_add_string message "$2"
+ json_dump
+}
+
+enable_service() {
+ /etc/init.d/"$1" enable >/dev/null 2>&1 || true
+}
+
+disable_service() {
+ /etc/init.d/"$1" disable >/dev/null 2>&1 || true
+}
+
+direct_mode() {
+ mkdir -p "$DIR"
+
+ cp -a "$MAIN" "$TMAIN" || return 1
+ cp -a "$LIMIT" "$TLIMIT" || return 1
+
+ ucode "$DIR/make-direct.uc" "$MAIN" "$MAIN.direct.json" || return 1
+ ucode "$DIR/make-direct.uc" "$LIMIT" "$LIMIT.direct.json" || return 1
+
+ /usr/bin/xray run -test -config "$MAIN.direct.json" \
+  -format json >/tmp/xray-direct-test.log 2>&1 || return 1
+ /usr/bin/xray run -test -config "$LIMIT.direct.json" \
+  -format json >>/tmp/xray-direct-test.log 2>&1 || return 1
+
+ mv "$MAIN.direct.json" "$MAIN"
+ mv "$LIMIT.direct.json" "$LIMIT"
+
+ touch "$PAUSED"
+
+ for s in bsbf-mptcp bsbf-endpoint-repair mptcp-autoreconnect; do
+  disable_service "$s"
+ done
+
+ for s in bsbf-bonding-nft xray xray-5mbps; do
+  enable_service "$s"
+ done
+
+ /etc/init.d/mptcp-autoreconnect stop >/dev/null 2>&1 || true
+ /etc/init.d/bsbf-endpoint-repair stop >/dev/null 2>&1 || true
+ /etc/init.d/bsbf-mptcp stop >/dev/null 2>&1 || true
+ ip mptcp endpoint flush >/dev/null 2>&1 || true
+
+ nft -f /usr/share/bsbf/bsbf_bonding.nft || return 1
+ /etc/init.d/xray restart >/dev/null 2>&1 || return 1
+ /etc/init.d/xray-5mbps restart >/dev/null 2>&1 || return 1
+
+ sleep 4
+ curl -4 -sS --max-time 10 -o /dev/null \
+  https://connectivitycheck.gstatic.com/generate_204
+}
+
+tunnel_mode() {
+ [ -s "$TMAIN" ] && [ -s "$TLIMIT" ] || return 1
+
+ cp -a "$TMAIN" "$MAIN.tmp.json"
+ cp -a "$TLIMIT" "$LIMIT.tmp.json"
+
+ /usr/bin/xray run -test -config "$MAIN.tmp.json" \
+  -format json >/tmp/xray-tunnel-test.log 2>&1 || return 1
+ /usr/bin/xray run -test -config "$LIMIT.tmp.json" \
+  -format json >>/tmp/xray-tunnel-test.log 2>&1 || return 1
+
+ mv "$MAIN.tmp.json" "$MAIN"
+ mv "$LIMIT.tmp.json" "$LIMIT"
+ rm -f "$PAUSED"
+
+ for s in bsbf-bonding-nft bsbf-endpoint-repair bsbf-mptcp \
+          mptcp-autoreconnect xray xray-5mbps; do
+  enable_service "$s"
+ done
+
+ nft -f /usr/share/bsbf/bsbf_bonding.nft
+ /etc/init.d/bsbf-mptcp restart >/dev/null 2>&1 || true
+ /etc/init.d/xray restart >/dev/null 2>&1 || true
+ /etc/init.d/xray-5mbps restart >/dev/null 2>&1 || true
+ timeout 30 /usr/sbin/mptcp-reconnect >/tmp/mptcp-resume-ui.log 2>&1 || return 1
+ /etc/init.d/xray status >/dev/null 2>&1 || return 1
+ /etc/init.d/xray-5mbps status >/dev/null 2>&1 || return 1
+ CODE=$(curl -4 -sS --max-time 10 -o /dev/null -w "%{http_code}" https://connectivitycheck.gstatic.com/generate_204)
+ [ "$CODE" = 204 ] || return 1
+}
+
+case "$1" in
+list)
+ echo '{ "status": {}, "reconnect": {}, "pause": {}, "resume": {}, "resume_check": {} }'
+;;
+call)
+ case "$2" in
+ status)
+  R="$(curl -4 -sS --connect-timeout 3 --max-time 5 \
+   -o /dev/null -w '%{http_code} %{time_total}' \
+   https://connectivitycheck.gstatic.com/generate_204 2>/dev/null)"
+  CODE="${R%% *}"; TIME="${R#* }"
+  [ -z "$CODE" ] && CODE=000
+  [ "$TIME" = "$R" ] && TIME=0
+  EP="$(ip mptcp endpoint show 2>/dev/null | grep -c .)"
+  SF="$(ss -Mi 2>/dev/null | grep -o 'subflows_total:[0-9]*' |
+   cut -d: -f2 | sort -nr | head -n1)"
+  [ -z "$SF" ] && SF=0
+  XRAY=0
+  pgrep -f '/etc/xray/config.json' >/dev/null && XRAY=1
+  STATE=gangguan
+  [ "$CODE" = 204 ] && STATE=normal
+  [ -e "$PAUSED" ] && STATE=paused
+
+  json_init
+  json_add_string tunnel "$STATE"
+  json_add_string http "$CODE"
+  json_add_string time "$TIME"
+  json_add_int endpoint "$EP"
+  json_add_int subflow "$SF"
+  json_add_boolean xray "$XRAY"
+  json_add_string backup normal
+  json_add_boolean paused "$([ -e "$PAUSED" ] && echo 1 || echo 0)"
+  json_dump
+ ;;
+ reconnect)
+  [ -e "$PAUSED" ] && {
+   reply 0 "Mode Direct + GeoSite sedang aktif"
+   exit 0
+  }
+  /usr/sbin/mptcp-reconnect >/tmp/mptcp-reconnect-ui.log 2>&1 &
+  reply 1 "Koneksi ulang dimulai"
+ ;;
+ pause)
+  [ -e "$PAUSED" ] && {
+   reply 1 "Mode Direct + GeoSite sudah aktif"
+   exit 0
+  }
+
+  if direct_mode; then
+   reply 1 "MPTCP dijeda; Direct + GeoSite aktif"
+  else
+   [ -s "$TMAIN" ] && cp -a "$TMAIN" "$MAIN"
+   [ -s "$TLIMIT" ] && cp -a "$TLIMIT" "$LIMIT"
+   rm -f "$PAUSED"
+   for s in bsbf-mptcp bsbf-endpoint-repair mptcp-autoreconnect; do
+    enable_service "$s"
+   done
+   nft -f /usr/share/bsbf/bsbf_bonding.nft >/dev/null 2>&1 || true
+   /etc/init.d/xray restart >/dev/null 2>&1 || true
+   /etc/init.d/xray-5mbps restart >/dev/null 2>&1 || true
+   /etc/init.d/bsbf-mptcp restart >/dev/null 2>&1 || true
+   reply 0 "Direct gagal; mode tunnel dipulihkan"
+  fi
+ ;;
+ resume_check)
+  O="$(timeout 15 /usr/sbin/mptcp-resume-safe 2>&1)"
+  R=$?
+  json_init
+  json_add_boolean ok "$([ "$R" = 0 ] && echo 1 || echo 0)"
+  json_add_int rc "$R"
+  json_add_string message "$O"
+  json_dump
+ ;;
+
+ resume)
+  [ -e "$PAUSED" ] || {
+   reply 1 "MPTCP sudah aktif"
+   exit 0
+  }
+
+  O="$(timeout 15 /usr/sbin/mptcp-resume-safe 2>&1)"
+  R=$?
+  if [ "$R" -ne 0 ]; then
+   reply 0 "Aktivasi dibatalkan: $O"
+   exit 0
+  fi
+  if tunnel_mode; then
+   reply 1 "Pengaktifan MPTCP dimulai"
+  else
+   if direct_mode; then
+    reply 0 "Aktivasi gagal; mode Direct dipulihkan"
+   else
+    reply 0 "Aktivasi dan rollback Direct gagal"
+   fi
+  fi
+ ;;
+ *) reply 0 "Metode tidak tersedia" ;;
+ esac
+;;
+esac

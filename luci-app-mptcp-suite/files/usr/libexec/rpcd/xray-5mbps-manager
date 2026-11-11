@@ -1,0 +1,286 @@
+#!/bin/sh
+. /usr/share/libubox/jshn.sh
+ACTIVE=/etc/xray-5mbps/config.json
+TUNNEL=/etc/mptcp-suite/tunnel-5mbps.json
+DRAFT=/etc/xray-5mbps/config.candidate.json
+VLESS=vless-5mbps
+FREEDOM=freedom-5mbps
+
+reply() {
+ json_init
+ json_add_boolean ok "$1"
+ json_add_string message "$2"
+ json_dump
+}
+
+tunnel_test() {
+ cfg="$1"
+ tmp="/tmp/xray5-test-$$.json"
+ log="/tmp/xray5-test-$$.log"
+
+ jq '
+  .inbounds=[{
+   "tag":"test-socks","listen":"127.0.0.1","port":12347,
+   "protocol":"socks","settings":{"auth":"noauth","udp":false}
+  }] |
+  .routing={"domainStrategy":"AsIs","rules":[{
+   "type":"field","inboundTag":["test-socks"],
+   "outboundTag":"vless-5mbps"
+  }]}
+ ' "$cfg" >"$tmp" || { rm -f "$tmp" "$log"; return 1; }
+
+ chmod 600 "$tmp"
+ xray run -test -c "$tmp" >"$log" 2>&1 ||
+  { rm -f "$tmp" "$log"; return 1; }
+
+ xray run -c "$tmp" >"$log" 2>&1 &
+ pid=$!
+ sleep 3
+
+ code="$(curl --socks5-hostname 127.0.0.1:12347 \
+  -4 -sS --max-time 12 -o /dev/null -w '%{http_code}' \
+  https://connectivitycheck.gstatic.com/generate_204 2>/dev/null)"
+
+ kill "$pid" 2>/dev/null
+ wait "$pid" 2>/dev/null
+ rm -f "$tmp" "$log"
+
+ [ "$code" = 204 ]
+}
+
+case "$1" in
+ list)
+  echo '{
+   "status":{},
+   "test_tunnel":{},
+   "save_draft":{
+    "server":"String","port":"String","uuid":"String",
+    "sni":"String","reality_password":"String",
+    "short_id":"String","fingerprint":"String"
+   },
+   "validate_draft":{},
+   "apply_safe":{},
+   "discard_draft":{}
+  }'
+ ;;
+
+ call)
+  case "$2" in
+   status)
+[ -e /etc/mptcp-suite/paused ] && DISPLAY="/etc/mptcp-suite/tunnel-5mbps.json" || DISPLAY="$ACTIVE"
+    redirect="$(jq -r --arg t "$FREEDOM" \
+     '.outbounds[]|select(.tag==$t)|.settings.redirect // ""' \
+     "$DISPLAY" 2>/dev/null)"
+    sni="$(jq -r --arg t "$VLESS" \
+     '.outbounds[]|select(.tag==$t)|
+      .streamSettings.realitySettings.serverName // ""' \
+     "$DISPLAY" 2>/dev/null)"
+    fp="$(jq -r --arg t "$VLESS" \
+     '.outbounds[]|select(.tag==$t)|
+      .streamSettings.realitySettings.fingerprint // ""' \
+     "$DISPLAY" 2>/dev/null)"
+
+    running=0
+    /etc/init.d/xray-5mbps status 2>/dev/null |
+     grep -qx running && running=1
+    listening=0
+    ss -lnt 2>/dev/null |
+     grep -q '127.0.0.1:12346 ' && listening=1
+    draft=0
+    [ -s "$DRAFT" ] && draft=1
+
+    json_init
+    json_add_boolean ok 1
+    json_add_string server "$redirect"
+    json_add_string sni "$sni"
+    json_add_string fingerprint "$fp"
+    json_add_int local_port 12346
+    json_add_boolean running "$running"
+    json_add_boolean listening "$listening"
+    json_add_boolean draft "$draft"
+    uuid_len="$(jq -r --arg t 'vless-5mbps' '.outbounds[]|select(.tag==$t)|.settings.id // ""|length' "$DISPLAY")"
+pass_len="$(jq -r --arg t 'vless-5mbps' '.outbounds[]|select(.tag==$t)|.streamSettings.realitySettings.password // ""|length' "$DISPLAY")"
+short_len="$(jq -r --arg t 'vless-5mbps' '.outbounds[]|select(.tag==$t)|.streamSettings.realitySettings.shortId // ""|length' "$DISPLAY")"
+json_add_int uuid_length "${uuid_len:-0}"
+json_add_string uuid ""
+json_add_string reality_password ""
+json_add_string short_id ""
+json_add_int reality_length "${pass_len:-0}"
+json_add_int short_id_length "${short_len:-0}"
+json_dump
+   ;;
+
+   test_tunnel)
+    if tunnel_test "$ACTIVE"; then
+     reply 1 "Tunnel Xray 5 Mbps normal (HTTP 204)"
+    else
+     reply 0 "Tunnel Xray 5 Mbps gagal"
+    fi
+   ;;
+
+   save_draft)
+    json_load "$(cat)"
+    json_get_var server server
+    json_get_var port port
+    json_get_var uuid uuid
+    json_get_var sni sni
+    json_get_var pass reality_password
+    json_get_var short short_id
+    json_get_var fp fingerprint
+current_uuid="$(jq -r --arg t 'vless-5mbps' '.outbounds[]|select(.tag==$t)|.settings.id // ""' "$ACTIVE")"
+current_pass="$(jq -r --arg t 'vless-5mbps' '.outbounds[]|select(.tag==$t)|.streamSettings.realitySettings.password // ""' "$ACTIVE")"
+current_short="$(jq -r --arg t 'vless-5mbps' '.outbounds[]|select(.tag==$t)|.streamSettings.realitySettings.shortId // ""' "$ACTIVE")"
+[ -n "${uuid}" ] || uuid="$current_uuid"
+[ -n "${pass}" ] || pass="$current_pass"
+[ -n "${short}" ] || short="$current_short"
+
+    case "$server" in
+     ''|*[!A-Za-z0-9.:-]*)
+      reply 0 "Alamat VPS tidak valid"; exit 0 ;;
+    esac
+    case "$port" in
+     ''|*[!0-9]*)
+      reply 0 "Port tidak valid"; exit 0 ;;
+    esac
+    [ "$port" -ge 1 ] && [ "$port" -le 65535 ] || {
+     reply 0 "Port harus 1-65535"; exit 0
+    }
+    echo "$uuid" | grep -Eq '^[0-9a-fA-F-]{36}$' || {
+     reply 0 "UUID tidak valid"; exit 0
+    }
+    [ "${#pass}" -ge 20 ] || {
+     reply 0 "REALITY password/public key terlalu pendek"; exit 0
+    }
+    echo "$short" | grep -Eq '^[0-9a-fA-F]{2,32}$' || {
+     reply 0 "Short ID tidak valid"; exit 0
+    }
+
+[ -e /etc/mptcp-suite/paused ] && SOURCE="$TUNNEL" || SOURCE="$ACTIVE"
+    cp -a "$SOURCE" "$DRAFT" || {
+     reply 0 "Gagal membuat draft"; exit 0
+    }
+
+    jq --arg vt "$VLESS" --arg ft "$FREEDOM" \
+     --arg redirect "$server:$port" --arg uuid "$uuid" \
+     --arg sni "$sni" --arg pass "$pass" \
+     --arg short "$short" --arg fp "${fp:-chrome}" '
+      (.outbounds[]|select(.tag==$ft)|.settings.redirect)=$redirect |
+      (.outbounds[]|select(.tag==$vt)|.settings.id)=$uuid |
+      (.outbounds[]|select(.tag==$vt)|
+       .streamSettings.realitySettings.serverName)=$sni |
+      (.outbounds[]|select(.tag==$vt)|
+       .streamSettings.realitySettings.password)=$pass |
+      (.outbounds[]|select(.tag==$vt)|
+       .streamSettings.realitySettings.shortId)=$short |
+      (.outbounds[]|select(.tag==$vt)|
+       .streamSettings.realitySettings.fingerprint)=$fp
+     ' "$DRAFT" >"$DRAFT.tmp" || {
+      rm -f "$DRAFT" "$DRAFT.tmp"
+      reply 0 "Gagal menyusun draft"; exit 0
+    }
+
+    mv "$DRAFT.tmp" "$DRAFT"
+    chmod 600 "$DRAFT"
+    reply 1 "Draft Xray 5 Mbps tersimpan; layanan aktif tidak berubah"
+   ;;
+
+   validate_draft)
+    [ -s "$DRAFT" ] || {
+     reply 0 "Draft belum tersedia"; exit 0
+    }
+    if xray run -test -c "$DRAFT" \
+     >/tmp/xray-5mbps-draft-check.log 2>&1; then
+     reply 1 "Draft Xray 5 Mbps valid; belum diterapkan"
+    else
+     reply 0 "Validasi draft gagal"
+    fi
+   ;;
+
+   apply_safe)
+    [ -s "$DRAFT" ] || {
+     reply 0 "Draft belum tersedia"
+     exit 0
+    }
+
+    xray run -test -c "$DRAFT" \
+     >/tmp/xray-5mbps-apply-check.log 2>&1 || {
+      reply 0 "Draft tidak valid; penerapan dibatalkan"
+      exit 0
+     }
+
+if [ -e /etc/mptcp-suite/paused ]; then
+ cp -a "$DRAFT" "$TUNNEL.new" || { reply 0 "Gagal menyiapkan cadangan tunnel"; exit 0; }
+ chmod 600 "$TUNNEL.new"
+ mv "$TUNNEL.new" "$TUNNEL"
+ new_redirect=$(jq -r '..|objects|.redirect? // empty' "$TUNNEL" | head -1)
+ uci set mptcp_profiles.limit5.vps_port="${new_redirect##*:}"
+ uci commit mptcp_profiles
+ rm -f "$DRAFT" "$DRAFT.tmp"
+ reply 1 "Akun tunnel tersimpan. Mode Direct tetap aktif."
+ exit 0
+fi
+    stamp="$(date +%Y%m%d-%H%M%S)"
+    snapshot="/root/xray-5mbps-before-$stamp.json"
+
+    cp -a "$ACTIVE" "$snapshot" || {
+     reply 0 "Gagal membuat snapshot"
+     exit 0
+    }
+    chmod 600 "$snapshot"
+
+    cp -a "$DRAFT" "$ACTIVE.new" || {
+     reply 0 "Gagal menyiapkan konfigurasi aktif"
+     exit 0
+    }
+
+    chmod 600 "$ACTIVE.new"
+    mv "$ACTIVE.new" "$ACTIVE"
+
+    /etc/init.d/xray-5mbps restart \
+     >/tmp/xray-5mbps-restart.log 2>&1
+    sleep 4
+
+    healthy=1
+
+    /etc/init.d/xray-5mbps status 2>/dev/null |
+     grep -qx running || healthy=0
+
+    ss -lnt 2>/dev/null |
+     grep -q '127.0.0.1:12346 ' || healthy=0
+
+    xray run -test -c "$ACTIVE" \
+     >/tmp/xray-5mbps-active-check.log 2>&1 || healthy=0
+
+    [ "$healthy" -eq 1 ] && tunnel_test "$ACTIVE" || healthy=0
+
+    if [ "$healthy" -ne 1 ]; then
+     cp -a "$snapshot" "$ACTIVE"
+     chmod 600 "$ACTIVE"
+     /etc/init.d/xray-5mbps restart \
+      >/tmp/xray-5mbps-rollback.log 2>&1
+     sleep 4
+
+     if /etc/init.d/xray-5mbps status 2>/dev/null |
+        grep -qx running &&
+        ss -lnt 2>/dev/null |
+        grep -q '127.0.0.1:12346 '; then
+      reply 0 "Penerapan gagal; rollback otomatis berhasil"
+     else
+      reply 0 "Penerapan dan pemulihan layanan gagal; periksa snapshot"
+     fi
+     exit 0
+    fi
+
+    rm -f "$DRAFT" "$DRAFT.tmp"
+    reply 1 "Xray 5 Mbps diterapkan; snapshot: xray-5mbps-before-$stamp.json"
+   ;;
+
+   discard_draft)
+    rm -f "$DRAFT" "$DRAFT.tmp"
+    reply 1 "Draft Xray 5 Mbps dihapus"
+   ;;
+
+   *) reply 0 "Metode tidak tersedia" ;;
+  esac
+ ;;
+esac

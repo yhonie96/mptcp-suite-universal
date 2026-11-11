@@ -1,0 +1,17 @@
+{
+ "luci-app-xray-profile-builder": {
+  "description": "Generator aman profil Xray",
+  "read": {
+   "ubus": {
+    "xray-profile-builder": [ "status", "validate_draft" ]
+   }
+  },
+  "write": {
+   "ubus": {
+    "xray-profile-builder": [
+     "save_draft", "generate", "discard"
+    ]
+   }
+  }
+ }
+}

@@ -1,0 +1,102 @@
+{
+  "admin/status/mptcp-suite": {
+    "title": "MPTCP Suite",
+    "order": 60,
+    "action": {
+      "type": "firstchild"
+    },
+    "depends": {
+      "acl": [
+        "luci-app-mptcp",
+        "luci-app-mptcp-manager",
+        "luci-app-mptcp-source-editor",
+        "luci-app-xray-manager",
+        "luci-app-xray-5mbps-manager",
+        "luci-app-mptcp-backup",
+        "luci-app-mptcp-restore",
+        "luci-app-xray-profile-builder",
+        "luci-app-xray-profile-runtime"
+      ]
+    }
+  },
+  "admin/status/mptcp-suite/overview": {
+    "title": "Dashboard",
+    "order": 10,
+    "action": {
+      "type": "view",
+      "path": "status/mptcp"
+    }
+  },
+  "admin/status/mptcp-suite/xray": {
+    "action": {
+      "type": "view",
+      "path": "status/xray-manager"
+    }
+  },
+  "admin/status/mptcp-suite/backup": {
+    "title": "Backup & Restore",
+    "order": 70,
+    "action": {
+      "type": "view",
+      "path": "status/mptcp-backup"
+    },
+    "depends": {
+      "acl": [
+        "luci-app-mptcp-backup",
+        "luci-app-mptcp-restore"
+      ]
+    }
+  },
+  "admin/status/mptcp-suite/source-editor": {
+    "title": "Kelola Sumber",
+    "order": 30,
+    "action": {
+      "type": "view",
+      "path": "status/mptcp-source-editor"
+    },
+    "depends": {
+      "acl": [
+        "luci-app-mptcp-source-editor"
+      ]
+    }
+  },
+  "admin/status/mptcp-suite/xray5": {
+    "action": {
+      "type": "view",
+      "path": "status/xray-5mbps-manager"
+    },
+    "depends": {
+      "acl": [
+        "luci-app-xray-5mbps-manager"
+      ]
+    }
+  },
+  "admin/status/mptcp-suite/profiles": {
+    "title": "Profil Xray",
+    "order": 50,
+    "action": {
+      "type": "view",
+      "path": "status/xray-profiles"
+    },
+    "depends": {
+      "acl": [
+        "luci-app-xray-profiles",
+        "luci-app-xray-profile-builder",
+        "luci-app-xray-profile-runtime"
+      ]
+    }
+  },
+  "admin/status/mptcp-suite/traffic-rules": {
+    "title": "Kebijakan Trafik",
+    "order": 40,
+    "action": {
+      "type": "view",
+      "path": "status/xray-traffic-rules"
+    },
+    "depends": {
+      "acl": [
+        "luci-app-xray-traffic-rules"
+      ]
+    }
+  }
+}

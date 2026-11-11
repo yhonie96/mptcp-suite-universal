@@ -1,0 +1,21 @@
+{
+ "luci-app-xray-profile-runtime": {
+  "description": "Runtime aman profil Xray dinamis",
+  "read": {
+   "ubus": {
+    "xray-profile-runtime": [
+     "dry_run", "self_test", "test_tunnel"
+    ]
+   },
+   "uci": [ "mptcp_profiles" ]
+  },
+  "write": {
+   "ubus": {
+    "xray-profile-runtime": [
+     "activate", "deactivate", "delete_full"
+    ]
+   },
+   "uci": [ "mptcp_profiles" ]
+  }
+ }
+}

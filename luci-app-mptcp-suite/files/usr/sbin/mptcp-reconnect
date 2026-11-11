@@ -1,0 +1,35 @@
+#!/bin/sh
+LOCK=/tmp/mptcp-reconnect.lock
+if ! mkdir "$LOCK" 2>/dev/null; then exit 0; fi
+trap 'rmdir "$LOCK"' EXIT INT TERM
+TAG=mptcp-reconnect
+logger -t "$TAG" "Memulai koneksi ulang aman"
+
+for DEV in $(ip -4 route show default | awk "{print $5}" | sort -u); do
+ IFACE="$(ubus list "network.interface.*" | sed "s/network.interface.//" | while read I; do
+  [ "$(ifstatus "$I" 2>/dev/null | jsonfilter -e "@.l3_device")" = "$DEV" ] && { echo "$I"; break; }
+ done)"
+ [ -n "$IFACE" ] && ubus call "network.interface.$IFACE" up >/dev/null 2>&1
+done
+
+/etc/init.d/bsbf-mptcp stop
+rm -f /run/bsbf-mptcp-supported /run/bsbf-mptcp-not-supported /run/bsbf-mptcp-no-connectivity
+touch /run/bsbf-mptcp-supported /run/bsbf-mptcp-not-supported /run/bsbf-mptcp-no-connectivity
+/etc/init.d/bsbf-mptcp start
+
+ip rule show | grep -q 'fwmark 0x1 lookup 10000' ||
+ ip rule add pref 100 fwmark 0x1 lookup 10000
+ip route replace local 0.0.0.0/0 dev lo table 10000
+
+sleep 12
+/etc/init.d/xray restart
+/etc/init.d/xray-5mbps restart
+sleep 3
+
+N="$(ip mptcp endpoint show | grep -c .)"
+if [ "$N" -ge 1 ] && pgrep -f '/etc/xray/config.json' >/dev/null; then
+ logger -t "$TAG" "Berhasil, endpoint=$N"
+ exit 0
+fi
+logger -t "$TAG" "Gagal, endpoint=$N"
+exit 1

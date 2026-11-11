@@ -1,0 +1,15 @@
+{
+ "luci-app-mptcp": {
+  "description": "Akses monitor dan kontrol MPTCP",
+  "read": {
+   "ubus": {
+    "mptcp": [ "status" ]
+   }
+  },
+  "write": {
+   "ubus": {
+    "mptcp": [ "reconnect", "pause", "resume", "resume_check" ]
+   }
+  }
+ }
+}

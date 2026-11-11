@@ -1,0 +1,199 @@
+#!/bin/sh
+. /usr/share/libubox/jshn.sh
+DIR=/root/mptcp-suite-backups
+
+reply() {
+ json_init
+ json_add_boolean ok "$1"
+ json_add_string message "$2"
+ json_dump
+}
+
+valid_name() {
+ case "$1" in
+  mptcp-suite-[0-9]*.tar.gz) return 0 ;;
+  *) return 1 ;;
+ esac
+}
+
+case "$1" in
+ list)
+  echo '{
+   "status":{},
+   "create":{},
+   "validate":{"name":"String"},
+   "delete":{"name":"String"}
+  }'
+ ;;
+
+ call)
+  case "$2" in
+   status)
+    mkdir -p "$DIR"
+    chmod 700 "$DIR"
+
+    json_init
+    json_add_array backups
+    for file in "$DIR"/mptcp-suite-*.tar.gz; do
+     [ -f "$file" ] || continue
+     name="${file##*/}"
+     size="$(wc -c <"$file" 2>/dev/null)"
+     checksum="$(sha256sum "$file" 2>/dev/null | awk '{print $1}')"
+
+     json_add_object ""
+     json_add_string name "$name"
+     json_add_int size "${size:-0}"
+     json_add_string checksum "${checksum:-unknown}"
+     json_close_object
+    done
+    json_close_array
+    json_dump
+   ;;
+
+   create)
+    mkdir -p "$DIR"
+    chmod 700 "$DIR"
+    stamp="$(date +%Y%m%d-%H%M%S)"
+    name="mptcp-suite-$stamp.tar.gz"
+    file="$DIR/$name"
+    tmp="/tmp/mptcp-suite-$stamp"
+    mkdir -p "$tmp"
+
+    paths="
+etc/bsbf
+etc/config/network
+etc/config/xray
+etc/xray/config.json
+www/luci-static/resources/view/status/mptcp.js
+www/luci-static/resources/view/status/mptcp-manager.js
+www/luci-static/resources/view/status/mptcp-settings.js
+www/luci-static/resources/view/status/xray-manager.js
+usr/libexec/rpcd/mptcp
+usr/libexec/rpcd/mptcp-manager
+usr/libexec/rpcd/xray-manager
+usr/share/luci/menu.d/luci-app-mptcp-suite.json
+usr/share/rpcd/acl.d/luci-app-mptcp.json
+usr/share/rpcd/acl.d/luci-app-mptcp-manager.json
+usr/share/rpcd/acl.d/luci-app-xray-manager.json
+www/luci-static/resources/view/status/mptcp-backup.js
+usr/libexec/rpcd/mptcp-backup
+usr/libexec/rpcd/mptcp-restore
+usr/share/rpcd/acl.d/luci-app-mptcp-backup.json
+usr/share/rpcd/acl.d/luci-app-mptcp-restore.json
+www/luci-static/resources/view/status/mptcp-source-editor.js
+usr/libexec/rpcd/mptcp-source-editor
+usr/share/rpcd/acl.d/luci-app-mptcp-source-editor.json
+etc/mptcp-suite
+etc/xray-5mbps/config.json
+www/luci-static/resources/view/status/xray-5mbps-manager.js
+usr/libexec/rpcd/xray-5mbps-manager
+usr/share/rpcd/acl.d/luci-app-xray-5mbps-manager.json
+etc/init.d/xray-5mbps
+etc/config/mptcp_profiles
+etc/config/netcontrol
+www/luci-static/resources/view/status/xray-profiles.js
+www/luci-static/resources/view/netcontrol/devices.js
+usr/libexec/rpcd/xray-profiles
+usr/libexec/rpcd/xray-profile-builder
+usr/libexec/rpcd/xray-profile-runtime
+usr/libexec/rpcd/netcontrol-profiles
+usr/share/rpcd/acl.d/luci-app-xray-profiles.json
+usr/share/rpcd/acl.d/luci-app-xray-profile-builder.json
+usr/share/rpcd/acl.d/luci-app-xray-profile-runtime.json
+usr/share/rpcd/acl.d/luci-app-netcontrol-profiles.json
+usr/share/rpcd/acl.d/luci-app-netcontrol.json
+usr/share/rpcd/ucode/netcontrol.uc
+usr/bin/netcontrolctl
+usr/lib/netcontrol/bsbf-5mbps-sync.sh
+"
+
+    mkdir -p "$tmp/root"
+    for path in $paths; do
+     [ -e "/$path" ] || continue
+     mkdir -p "$tmp/root/$(dirname "$path")"
+     cp -a "/$path" "$tmp/root/$path" || {
+      rm -rf "$tmp"
+      reply 0 "Gagal menyalin komponen backup"
+      exit 0
+     }
+    done
+
+    {
+     echo "format=1"
+     echo "created=$stamp"
+     echo "openwrt=$(ubus call system board |
+      jsonfilter -e '@.release.description' 2>/dev/null)"
+     echo "secrets=protected"
+    } >"$tmp/root/MANIFEST"
+
+    tar -C "$tmp/root" -czf "$file" . || {
+     rm -rf "$tmp" "$file"
+     reply 0 "Gagal membuat arsip"
+     exit 0
+    }
+
+    chmod 600 "$file"
+    sha256sum "$file" >"$file.sha256"
+    chmod 600 "$file.sha256"
+    rm -rf "$tmp"
+    reply 1 "Backup berhasil dibuat: $name"
+   ;;
+
+   validate)
+    json_load "$(cat)"
+    json_get_var name name
+    valid_name "$name" || {
+     reply 0 "Nama backup tidak valid"
+     exit 0
+    }
+
+    file="$DIR/$name"
+    [ -f "$file" ] || {
+     reply 0 "Backup tidak ditemukan"
+     exit 0
+    }
+
+    expected="$(awk '{print $1}' "$file.sha256" 2>/dev/null)"
+    actual="$(sha256sum "$file" 2>/dev/null | awk '{print $1}')"
+    [ -n "$expected" ] && [ "$expected" = "$actual" ] || {
+     reply 0 "Checksum backup tidak cocok"
+     exit 0
+    }
+
+    tar -tzf "$file" >/tmp/mptcp-backup-list.$$ 2>/dev/null || {
+     rm -f /tmp/mptcp-backup-list.$$
+     reply 0 "Arsip rusak"
+     exit 0
+    }
+
+    if grep -Eq '(^|/)\.\.(/|$)|^/' /tmp/mptcp-backup-list.$$; then
+     rm -f /tmp/mptcp-backup-list.$$
+     reply 0 "Arsip mengandung jalur tidak aman"
+     exit 0
+    fi
+
+    grep -qx './MANIFEST' /tmp/mptcp-backup-list.$$ || {
+     rm -f /tmp/mptcp-backup-list.$$
+     reply 0 "Manifest backup tidak ditemukan"
+     exit 0
+    }
+
+    rm -f /tmp/mptcp-backup-list.$$
+    reply 1 "Backup valid dan siap untuk restore bertahap"
+   ;;
+
+   delete)
+    json_load "$(cat)"
+    json_get_var name name
+    valid_name "$name" || {
+     reply 0 "Nama backup tidak valid"
+     exit 0
+    }
+    rm -f "$DIR/$name" "$DIR/$name.sha256"
+    reply 1 "Backup berhasil dihapus"
+   ;;
+
+   *) reply 0 "Metode tidak tersedia" ;;
+  esac
+ ;;
+esac

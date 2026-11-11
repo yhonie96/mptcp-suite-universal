@@ -1,0 +1,217 @@
+#!/bin/sh
+. /usr/share/libubox/jshn.sh
+
+DRAFT=/etc/mptcp-suite/xray-account-draft.json
+TEMPLATE=/etc/xray-5mbps/config.json
+
+reply() {
+ json_init
+ json_add_boolean ok "$1"
+ json_add_string message "$2"
+ json_dump
+}
+
+valid_id() {
+ case "$1" in
+  ''|*[!a-z0-9_-]*) return 1 ;;
+ esac
+}
+
+case "$1" in
+ list)
+  echo '{
+   "status":{},
+   "save_draft":{
+    "id":"String","uuid":"String","sni":"String",
+    "reality_password":"String","short_id":"String",
+    "fingerprint":"String"
+   },
+   "validate_draft":{},
+   "generate":{},
+   "discard":{}
+  }'
+ ;;
+
+ call)
+  case "$2" in
+   status)
+    json_init
+    json_add_boolean draft "$([ -s "$DRAFT" ] && echo 1 || echo 0)"
+    if [ -s "$DRAFT" ]; then
+     json_add_string id "$(jsonfilter -i "$DRAFT" -e '@.id')"
+    fi
+    json_dump
+   ;;
+
+   save_draft)
+    json_load "$(cat)"
+    json_get_var id id
+    json_get_var uuid uuid
+    json_get_var sni sni
+    json_get_var pass reality_password
+    json_get_var short short_id
+    json_get_var fp fingerprint
+
+    valid_id "$id" || {
+     reply 0 "ID profil tidak valid"; exit 0
+    }
+
+    [ "$(uci -q get mptcp_profiles.$id)" = profile ] || {
+     reply 0 "Simpan metadata profil terlebih dahulu"; exit 0
+    }
+
+    [ "$(uci -q get mptcp_profiles.$id.enabled)" = 0 ] || {
+     reply 0 "Profil aktif tidak boleh digenerate ulang"; exit 0
+    }
+
+    echo "$uuid" | grep -Eq '^[0-9a-fA-F-]{36}$' || {
+     reply 0 "UUID tidak valid"; exit 0
+    }
+
+    [ -n "$sni" ] || {
+     reply 0 "SNI wajib diisi"; exit 0
+    }
+
+    [ "${#pass}" -ge 20 ] || {
+     reply 0 "REALITY public key/password terlalu pendek"; exit 0
+    }
+
+    echo "$short" | grep -Eq '^[0-9a-fA-F]{2,32}$' || {
+     reply 0 "Short ID tidak valid"; exit 0
+    }
+
+    json_init
+    json_add_string id "$id"
+    json_add_string uuid "$uuid"
+    json_add_string sni "$sni"
+    json_add_string reality_password "$pass"
+    json_add_string short_id "$short"
+    json_add_string fingerprint "${fp:-chrome}"
+    json_dump >"$DRAFT"
+    chmod 600 "$DRAFT"
+
+    reply 1 "Draft akun tersimpan dan tetap tidak aktif"
+   ;;
+
+   validate_draft)
+    [ -s "$DRAFT" ] || {
+     reply 0 "Draft akun belum tersedia"; exit 0
+    }
+
+    id="$(jsonfilter -i "$DRAFT" -e '@.id')"
+    [ "$(uci -q get mptcp_profiles.$id)" = profile ] || {
+     reply 0 "Metadata profil tidak ditemukan"; exit 0
+    }
+
+    server="$(uci -q get mptcp_profiles.$id.server)"
+    vps_port="$(uci -q get mptcp_profiles.$id.vps_port)"
+    local_port="$(uci -q get mptcp_profiles.$id.local_port)"
+
+    [ -n "$server" ] && [ -n "$vps_port" ] &&
+    [ -n "$local_port" ] || {
+     reply 0 "Metadata profil belum lengkap"; exit 0
+    }
+
+    reply 1 "Draft akun dan metadata valid; belum digenerate"
+   ;;
+
+   generate)
+    [ -s "$DRAFT" ] || {
+     reply 0 "Draft akun belum tersedia"; exit 0
+    }
+
+    id="$(jsonfilter -i "$DRAFT" -e '@.id')"
+    uuid="$(jsonfilter -i "$DRAFT" -e '@.uuid')"
+    sni="$(jsonfilter -i "$DRAFT" -e '@.sni')"
+    pass="$(jsonfilter -i "$DRAFT" -e '@.reality_password')"
+    short="$(jsonfilter -i "$DRAFT" -e '@.short_id')"
+    fp="$(jsonfilter -i "$DRAFT" -e '@.fingerprint')"
+
+    server="$(uci -q get mptcp_profiles.$id.server)"
+    vps_port="$(uci -q get mptcp_profiles.$id.vps_port)"
+    local_port="$(uci -q get mptcp_profiles.$id.local_port)"
+    config="$(uci -q get mptcp_profiles.$id.config)"
+    service="$(uci -q get mptcp_profiles.$id.service)"
+    vtag="$(uci -q get mptcp_profiles.$id.outbound_tag)"
+    ftag="$(uci -q get mptcp_profiles.$id.freedom_tag)"
+
+    [ "$(uci -q get mptcp_profiles.$id.enabled)" = 0 ] || {
+     reply 0 "Profil aktif tidak boleh ditimpa"; exit 0
+    }
+
+    [ ! -e "$config" ] || {
+     reply 0 "Konfigurasi profil sudah ada"; exit 0
+    }
+
+    mkdir -p /etc/xray-profiles
+    chmod 700 /etc/xray-profiles
+
+    jq --arg vt "$vtag" --arg ft "$ftag" \
+     --arg redirect "$server:$vps_port" \
+     --arg uuid "$uuid" --arg sni "$sni" \
+     --arg pass "$pass" --arg short "$short" \
+     --arg fp "${fp:-chrome}" \
+     --argjson local "$local_port" '
+      (.inbounds[0].port)=$local |
+      (.inbounds[0].tag)="tproxy-profile" |
+      (.outbounds[]|select(.tag=="freedom-5mbps")|.tag)=$ft |
+      (.outbounds[]|select(.tag=="vless-5mbps")|.tag)=$vt |
+      (.outbounds[]|select(.tag==$ft)|.settings.redirect)=$redirect |
+      (.outbounds[]|select(.tag==$vt)|.settings.id)=$uuid |
+      (.outbounds[]|select(.tag==$vt)|
+       .streamSettings.sockopt.dialerProxy)=$ft |
+      (.outbounds[]|select(.tag==$vt)|
+       .streamSettings.realitySettings.serverName)=$sni |
+      (.outbounds[]|select(.tag==$vt)|
+       .streamSettings.realitySettings.password)=$pass |
+      (.outbounds[]|select(.tag==$vt)|
+       .streamSettings.realitySettings.shortId)=$short |
+      (.outbounds[]|select(.tag==$vt)|
+       .streamSettings.realitySettings.fingerprint)=$fp
+     ' "$TEMPLATE" >"$config.tmp" || {
+      rm -f "$config.tmp"
+      reply 0 "Generator konfigurasi gagal"; exit 0
+    }
+
+    xray run -test -c "$config.tmp" >/tmp/xray-profile-check.log 2>&1 || {
+     rm -f "$config.tmp"
+     reply 0 "Konfigurasi hasil generator tidak valid"; exit 0
+    }
+
+    mv "$config.tmp" "$config"
+    chmod 600 "$config"
+
+    cat >"/etc/init.d/$service" <<SERVICE
+#!/bin/sh /etc/rc.common
+USE_PROCD=1
+START=98
+STOP=12
+start_service() {
+ procd_open_instance
+ procd_set_param command /usr/bin/xray run -config $config -format json
+ procd_set_param env XRAY_LOCATION_ASSET=/usr/share/xray
+ procd_set_param file $config
+ procd_set_param limits nofile="1000000 1000000"
+ procd_set_param respawn
+ procd_set_param stdout 1
+ procd_set_param stderr 1
+ procd_close_instance
+}
+reload_service() { stop; start; }
+SERVICE
+
+    chmod 755 "/etc/init.d/$service"
+    rm -f "$DRAFT"
+
+    reply 1 "Konfigurasi dan service dibuat; profil tetap nonaktif"
+   ;;
+
+   discard)
+    rm -f "$DRAFT"
+    reply 1 "Draft akun dihapus"
+   ;;
+
+   *) reply 0 "Metode tidak tersedia" ;;
+  esac
+ ;;
+esac

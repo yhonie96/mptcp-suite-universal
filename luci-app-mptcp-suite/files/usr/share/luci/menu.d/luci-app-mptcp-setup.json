@@ -1,0 +1,13 @@
+{
+ "admin/status/mptcp-suite/setup": {
+  "title": "Setup Awal",
+  "order": 5,
+  "action": {
+   "type": "view",
+   "path": "status/mptcp-setup"
+  },
+  "depends": {
+   "acl": [ "luci-app-mptcp-manager" ]
+  }
+ }
+}

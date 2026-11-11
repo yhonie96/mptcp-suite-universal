@@ -1,0 +1,313 @@
+#!/bin/sh
+. /usr/share/libubox/jshn.sh
+DIR=/etc/mptcp-suite
+DRAFT=$DIR/source-draft.json
+
+reply() {
+ json_init
+ json_add_boolean ok "$1"
+ json_add_string message "$2"
+ json_dump
+}
+
+valid_section() {
+ case "$1" in
+  ''|*[!A-Za-z0-9_]*|*[!A-Za-z0-9_-]*) return 1 ;;
+ esac
+ [ "$(uci -q get network.$1)" = interface ]
+}
+
+case "$1" in
+ list)
+  echo '{
+   "status":{},
+   "save":{"source":"String","metric":"Integer","enabled":"Boolean"},
+   "validate":{},
+   "apply":{},
+   "discard":{}
+  }'
+ ;;
+
+ call)
+  case "$2" in
+   status)
+    json_init
+    json_add_boolean draft "$([ -s "$DRAFT" ] && echo 1 || echo 0)"
+    if [ -s "$DRAFT" ]; then
+     ds="$(jsonfilter -i "$DRAFT" -e '@.source')"
+     dm="$(jsonfilter -i "$DRAFT" -e '@.metric')"
+     de="$(jsonfilter -i "$DRAFT" -e '@.enabled')"
+     case "$de" in
+      1|true) de=1 ;;
+      *) de=0 ;;
+     esac
+     json_add_object draft_detail
+     json_add_string source "$ds"
+     json_add_int metric "${dm:-0}"
+     json_add_boolean enabled "$de"
+     json_close_object
+    fi
+    json_add_array sources
+
+    sections="$(uci -q show network |
+     awk -F'[.=]' '$3=="interface"{print $2}')"
+
+    for section in $sections; do
+     device="$(uci -q get network.$section.device)"
+     [ -n "$device" ] || continue
+     [ "$device" = lo ] && continue
+     [ "$device" = br-lan ] && continue
+
+     metric="$(uci -q get network.$section.metric)"
+     auto="$(uci -q get network.$section.auto)"
+     [ -n "$auto" ] || auto=1
+
+     state=unknown
+     grep -xqF "$device" /run/bsbf-mptcp-supported \
+      2>/dev/null && state=supported
+     grep -xqF "$device" /run/bsbf-mptcp-no-connectivity \
+      2>/dev/null && state=no-internet
+
+     json_add_object ""
+     json_add_string name "$section"
+     json_add_string device "$device"
+     json_add_int metric "${metric:-0}"
+     json_add_boolean enabled "$auto"
+     json_add_string state "$state"
+     json_close_object
+    done
+
+    json_close_array
+    json_dump
+   ;;
+
+   save)
+    json_load "$(cat)"
+    json_get_var source source
+    json_get_var metric metric
+    json_get_var enabled enabled
+
+    valid_section "$source" || {
+     reply 0 "Nama sumber tidak valid"
+     exit 0
+    }
+
+    device="$(uci -q get network.$source.device)"
+    if grep -xqF "$device" /run/bsbf-mptcp-no-connectivity 2>/dev/null; then
+     reply 0 "Sumber tanpa internet dikunci"
+     exit 0
+    fi
+
+    case "$metric" in
+     ''|*[!0-9]*)
+      reply 0 "Metric harus berupa angka"
+      exit 0
+     ;;
+    esac
+
+    [ "$metric" -ge 1 ] && [ "$metric" -le 999 ] || {
+     reply 0 "Metric harus antara 1 dan 999"
+     exit 0
+    }
+
+    duplicate=0
+    sections="$(uci -q show network |
+     awk -F'[.=]' '$3=="interface"{print $2}')"
+
+    for other in $sections; do
+     [ "$other" = "$source" ] && continue
+     other_metric="$(uci -q get network.$other.metric)"
+     [ "$other_metric" = "$metric" ] && duplicate=1
+    done
+
+    [ "$duplicate" -eq 0 ] || {
+     reply 0 "Metric sudah digunakan sumber lain"
+     exit 0
+    }
+
+    case "$enabled" in
+     1|true) enabled=1 ;;
+     *) enabled=0 ;;
+    esac
+
+    mkdir -p "$DIR"
+    chmod 700 "$DIR"
+
+    json_init
+    json_add_string source "$source"
+    json_add_int metric "$metric"
+    json_add_boolean enabled "$enabled"
+    json_add_string created "$(date +%Y%m%d-%H%M%S)"
+    json_dump >"$DRAFT"
+    chmod 600 "$DRAFT"
+
+    reply 1 "Draft tersimpan; jaringan aktif belum berubah"
+   ;;
+
+   validate)
+    [ -s "$DRAFT" ] || {
+     reply 0 "Draft belum tersedia"
+     exit 0
+    }
+
+    json_load "$(cat "$DRAFT")"
+    json_get_var source source
+    json_get_var metric metric
+    json_get_var enabled enabled
+
+    valid_section "$source" || {
+     reply 0 "Sumber draft tidak ditemukan"
+     exit 0
+    }
+
+    case "$metric" in
+     ''|*[!0-9]*)
+      reply 0 "Metric draft tidak valid"
+      exit 0
+     ;;
+    esac
+
+    [ "$metric" -ge 1 ] && [ "$metric" -le 999 ] || {
+     reply 0 "Metric draft di luar batas"
+     exit 0
+    }
+
+    if [ "$enabled" = 0 ] || [ "$enabled" = false ]; then
+     device="$(uci -q get network.$source.device)"
+     healthy=0
+
+     while read -r iface; do
+      [ -n "$iface" ] || continue
+      [ "$iface" = "$device" ] || healthy=$((healthy + 1))
+     done < /run/bsbf-mptcp-supported
+
+     [ "$healthy" -gt 0 ] || {
+      reply 0 "Ditolak: ini jalur sehat terakhir"
+      exit 0
+     }
+    fi
+
+    reply 1 "Draft valid; belum diterapkan"
+   ;;
+
+   apply)
+    [ -s "$DRAFT" ] || {
+     reply 0 "Draft belum tersedia"
+     exit 0
+    }
+
+    json_load "$(cat "$DRAFT")"
+    json_get_var source source
+    json_get_var metric metric
+    json_get_var enabled enabled
+
+    valid_section "$source" || {
+     reply 0 "Sumber draft tidak ditemukan"
+     exit 0
+    }
+
+    case "$metric" in
+     ''|*[!0-9]*)
+      reply 0 "Metric draft tidak valid"
+      exit 0
+     ;;
+    esac
+
+    [ "$metric" -ge 1 ] && [ "$metric" -le 999 ] || {
+     reply 0 "Metric draft di luar batas"
+     exit 0
+    }
+
+    device="$(uci -q get network.$source.device)"
+    [ -e "/sys/class/net/$device" ] || {
+     reply 0 "Perangkat sumber tidak tersedia"
+     exit 0
+    }
+
+    duplicate=0
+    sections="$(uci -q show network |
+     awk -F'[.=]' '$3=="interface"{print $2}')"
+    for other in $sections; do
+     [ "$other" = "$source" ] && continue
+     other_metric="$(uci -q get network.$other.metric)"
+     [ "$other_metric" = "$metric" ] && duplicate=1
+    done
+
+    [ "$duplicate" -eq 0 ] || {
+     reply 0 "Metric sudah digunakan sumber lain"
+     exit 0
+    }
+
+    case "$enabled" in
+     1|true) enabled=1 ;;
+     *) enabled=0 ;;
+    esac
+
+    if [ "$enabled" -eq 0 ]; then
+     healthy=0
+     while read -r iface; do
+      [ -n "$iface" ] || continue
+      [ "$iface" = "$device" ] || healthy=$((healthy + 1))
+     done < /run/bsbf-mptcp-supported
+
+     [ "$healthy" -gt 0 ] || {
+      reply 0 "Ditolak: ini jalur sehat terakhir"
+      exit 0
+     }
+    fi
+
+    stamp="$(date +%Y%m%d-%H%M%S)"
+    snapshot="/root/network-before-source-$stamp"
+    cp -a /etc/config/network "$snapshot" || {
+     reply 0 "Gagal membuat snapshot jaringan"
+     exit 0
+    }
+    chmod 600 "$snapshot"
+
+    uci set "network.$source.metric=$metric"
+    uci set "network.$source.auto=$enabled"
+    uci commit network || {
+     cp -a "$snapshot" /etc/config/network
+     reply 0 "Commit gagal; konfigurasi dipulihkan"
+     exit 0
+    }
+
+    if [ "$enabled" -eq 1 ]; then
+     ifup "$source" >/tmp/source-apply.log 2>&1
+     sleep 5
+
+     if ! fping -q -c 2 -t 1500 -I "$device" \
+      1.1.1.1 >/dev/null 2>&1; then
+      cp -a "$snapshot" /etc/config/network
+      ubus call uci reload_config >/dev/null 2>&1
+      ifup "$source" >/dev/null 2>&1
+      reply 0 "Tes jalur gagal; rollback otomatis selesai"
+      exit 0
+     fi
+    else
+     ifdown "$source" >/tmp/source-apply.log 2>&1
+     sleep 3
+
+     if ! curl -4 -sS --max-time 6 -o /dev/null \
+      https://connectivitycheck.gstatic.com/generate_204; then
+      cp -a "$snapshot" /etc/config/network
+      ubus call uci reload_config >/dev/null 2>&1
+      ifup "$source" >/dev/null 2>&1
+      reply 0 "Internet gagal; rollback otomatis selesai"
+      exit 0
+     fi
+    fi
+
+    rm -f "$DRAFT"
+    reply 1 "Berhasil diterapkan; snapshot: network-before-source-$stamp"
+   ;;
+
+   discard)
+    rm -f "$DRAFT"
+    reply 1 "Draft dihapus; jaringan aktif tidak berubah"
+   ;;
+
+   *) reply 0 "Metode tidak tersedia" ;;
+  esac
+ ;;
+esac

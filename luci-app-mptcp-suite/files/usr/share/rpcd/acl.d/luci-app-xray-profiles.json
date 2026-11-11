@@ -1,0 +1,20 @@
+{
+ "luci-app-xray-profiles": {
+  "description": "Kelola profil Xray dinamis",
+  "read": {
+   "ubus": {
+    "xray-profiles": [ "status" ]
+   },
+   "uci": [ "mptcp_profiles" ]
+  },
+  "write": {
+   "ubus": {
+    "xray-profiles": [
+     "save_draft", "apply_draft",
+     "discard_draft", "delete"
+    ]
+   },
+   "uci": [ "mptcp_profiles" ]
+  }
+ }
+}

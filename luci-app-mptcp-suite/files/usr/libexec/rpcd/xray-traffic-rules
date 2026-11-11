@@ -1,0 +1,292 @@
+#!/bin/sh
+. /usr/share/libubox/jshn.sh
+
+MAIN=/etc/xray/config.json
+LIMIT=/etc/xray-5mbps/config.json
+
+bool() {
+ [ "$1" = 1 ] && echo 1 || echo 0
+}
+
+rule_exists() {
+ file="$1"
+ query="$2"
+ jq -e "$query" "$file" >/dev/null 2>&1
+}
+
+profile_status() {
+ file="$1"
+ vless="$2"
+ direct="$3"
+
+ ads=0
+ youtube=0
+ http=0
+ dns=0
+ fallback=0
+
+ jq -e '
+  .routing.rules[]? |
+  select(.outboundTag=="block") |
+  .domain[]? |
+  select(.=="geosite:category-ads-all")
+ ' "$file" >/dev/null 2>&1 && ads=1
+
+ jq -e --arg tag "$vless" '
+  .routing.rules[]? |
+  select(.outboundTag==$tag) |
+  .domain[]? |
+  select(.=="geosite:youtube")
+ ' "$file" >/dev/null 2>&1 && youtube=1
+
+ jq -e --arg tag "$direct" '
+  .routing.rules[]? |
+  select(.outboundTag==$tag and
+         .port=="80" and
+         .network=="tcp")
+ ' "$file" >/dev/null 2>&1 && http=1
+
+ jq -e '
+  .routing.rules[]? |
+  select(.outboundTag=="dns-outbound" and .port=="53")
+ ' "$file" >/dev/null 2>&1 && dns=1
+
+ jq -e --arg tag "$vless" '
+  .routing.rules[]? |
+  select(.outboundTag==$tag and
+         .network=="tcp,udp" and
+         (.port==null) and
+         (.domain==null))
+ ' "$file" >/dev/null 2>&1 && fallback=1
+
+ json_add_boolean adblock "$ads"
+ json_add_boolean youtube_tunnel "$youtube"
+ json_add_boolean http_direct "$http"
+ json_add_boolean dns_redirect "$dns"
+ json_add_boolean fallback "$fallback"
+ json_add_string dns_server \
+  "$(jq -r '.dns.servers[0] // ""' "$file" 2>/dev/null)"
+ json_add_string domain_strategy \
+  "$(jq -r '.routing.domainStrategy // ""' "$file" 2>/dev/null)"
+ json_add_int rule_count \
+  "$(jq '.routing.rules|length' "$file" 2>/dev/null || echo 0)"
+}
+
+case "$1" in
+ list)
+  echo '{
+   "status":{},
+   "save_draft":{
+    "adblock":"String",
+    "youtube_tunnel":"String",
+    "http_direct":"String",
+    "block_quic":"String",
+    "tunnel_domains":"String",
+    "direct_domains":"String"
+   },
+    "validate_draft":{},
+    "apply_draft":{},
+   "discard_draft":{},
+   "apply_manual":{}
+  }'
+ ;;
+
+ call)
+  case "$2" in
+   save_draft)
+    json_load "$(cat)"
+    json_get_var adblock adblock
+    json_get_var youtube youtube_tunnel
+    json_get_var http_direct http_direct
+    json_get_var quic block_quic
+    json_get_var tunnel tunnel_domains
+    json_get_var direct direct_domains
+
+    case "$adblock:$youtube:$http_direct:$quic" in
+     *[!01:]*)
+      json_init
+      json_add_boolean ok 0
+      json_add_string message "Nilai sakelar tidak valid"
+      json_dump
+      exit 0
+     ;;
+    esac
+
+    validate_domains() {
+     echo "$1" | tr ',' '\n' |
+     while IFS= read -r d; do
+      d="$(echo "$d" | sed 's/^ *//;s/ *$//')"
+      [ -z "$d" ] && continue
+      case "$d" in
+       domain:*|full:*|regexp:*|geosite:*) ;;
+       *)
+        echo "INVALID"
+        return
+       ;;
+      esac
+     done
+    }
+
+    [ "$(validate_domains "$tunnel")" != INVALID ] &&
+    [ "$(validate_domains "$direct")" != INVALID ] || {
+     json_init
+     json_add_boolean ok 0
+     json_add_string message       "Domain harus memakai awalan domain:, full:, regexp:, atau geosite:"
+     json_dump
+     exit 0
+    }
+
+    json_init
+    json_add_boolean adblock "$adblock"
+    json_add_boolean youtube_tunnel "$youtube"
+    json_add_boolean http_direct "$http_direct"
+    json_add_boolean block_quic "$quic"
+    json_add_string tunnel_domains "$tunnel"
+    json_add_string direct_domains "$direct"
+    json_dump >/etc/mptcp-suite/traffic-rules-draft.json
+    chmod 600 /etc/mptcp-suite/traffic-rules-draft.json
+
+    json_init
+    json_add_boolean ok 1
+    json_add_string message      "Draft aturan tersimpan; konfigurasi aktif belum berubah"
+    json_dump
+   ;;
+
+   apply_manual)
+    uci commit traffic_policy
+    O="$(timeout 25 /usr/sbin/traffic-policy-apply 2>&1)"
+    R=$?
+    json_init
+    json_add_boolean ok "$([ "$R" = 0 ] && echo 1 || echo 0)"
+    json_add_int rc "$R"
+    json_add_string message "$O"
+    json_dump
+   ;;
+
+   validate_draft)
+    O="$(timeout 25 /usr/sbin/xray-policy-apply-draft check 2>&1)"
+    R=$?
+    json_init
+    json_add_boolean ok "$([ "$R" = 0 ] && echo 1 || echo 0)"
+    json_add_int rc "$R"
+    json_add_string message "$O"
+    json_dump
+   ;;
+
+   apply_draft)
+    O="$(timeout 35 /usr/sbin/xray-policy-apply-draft apply 2>&1)"
+    R=$?
+    json_init
+    json_add_boolean ok "$([ "$R" = 0 ] && echo 1 || echo 0)"
+    json_add_int rc "$R"
+    json_add_string message "$O"
+    json_dump
+   ;;
+
+   discard_draft)
+    rm -f /etc/mptcp-suite/traffic-rules-draft.json
+    json_init
+    json_add_boolean ok 1
+    json_add_string message      "Draft aturan dihapus; konfigurasi aktif tidak berubah"
+    json_dump
+   ;;
+
+   status)
+    main_valid=0
+    limit_valid=0
+    quic=0
+    same_policy=0
+
+    xray run -test -c "$MAIN" >/dev/null 2>&1 && main_valid=1
+    xray run -test -c "$LIMIT" >/dev/null 2>&1 && limit_valid=1
+
+    nft list ruleset 2>/dev/null |
+     grep -q 'udp dport 443.*Block-QUIC' && quic=1
+
+    main_policy="$(jq -S -c '
+     {
+      dns,
+      strategy:.routing.domainStrategy,
+      rules:[.routing.rules[]?|del(.outboundTag)]
+     }' "$MAIN")"
+
+    limit_policy="$(jq -S -c '
+     {
+      dns,
+      strategy:.routing.domainStrategy,
+      rules:[
+       .routing.rules[]? |
+       select((
+        .domain==["domain:cloudflare.com"] and
+        .outboundTag=="direct-5mbps"
+       ) | not) |
+       del(.outboundTag)
+      ]
+     }' "$LIMIT")"
+
+    [ "$main_policy" = "$limit_policy" ] && same_policy=1
+
+    json_init
+    json_add_boolean ok 1
+    json_add_boolean quic_blocked "$quic"
+    json_add_boolean policy_synced "$same_policy"
+    json_add_boolean draft      "$([ -s /etc/mptcp-suite/traffic-rules-draft.json ] && echo 1 || echo 0)"
+
+     bool01(){
+      V="$(jsonfilter -i /etc/mptcp-suite/traffic-rules-draft.json -e "$1")"
+      case "$V" in
+       true|1) echo 1 ;;
+       *) echo 0 ;;
+      esac
+     }
+    if [ -s /etc/mptcp-suite/traffic-rules-draft.json ]; then
+     json_add_object draft_settings
+     json_add_boolean adblock       "$(bool01 '@.adblock')"
+     json_add_boolean youtube_tunnel       "$(jsonfilter -i /etc/mptcp-suite/traffic-rules-draft.json -e '@.youtube_tunnel')"
+     json_add_boolean http_direct       "$(bool01 '@.http_direct')"
+     json_add_boolean block_quic       "$(jsonfilter -i /etc/mptcp-suite/traffic-rules-draft.json -e '@.block_quic')"
+     json_add_string tunnel_domains       "$(jsonfilter -i /etc/mptcp-suite/traffic-rules-draft.json -e '@.tunnel_domains')"
+     json_add_string direct_domains       "$(jsonfilter -i /etc/mptcp-suite/traffic-rules-draft.json -e '@.direct_domains')"
+     json_close_object
+    fi
+
+    json_add_object main
+    json_add_string name "Utama"
+    json_add_boolean config_valid "$main_valid"
+    profile_status "$MAIN" "vless" "direct"
+    json_close_object
+
+    json_add_object limit5
+    json_add_string name "5 Mbps"
+    json_add_boolean config_valid "$limit_valid"
+    profile_status "$LIMIT" "vless-5mbps" "direct-5mbps"
+    json_close_object
+
+    json_add_object dot
+    json_add_string location "VPS"
+    json_add_string resolver "Stubby"
+    json_add_string upstream "Cloudflare 1.1.1.1 / 1.0.0.1"
+    json_add_int port 853
+    json_add_string verification "cloudflare-dns.com"
+    json_close_object
+
+    json_add_object geodata
+    json_add_boolean geoip_exists \
+     "$([ -s /usr/share/xray/geoip.dat ] && echo 1 || echo 0)"
+    json_add_boolean geosite_exists \
+     "$([ -s /usr/share/xray/geosite.dat ] && echo 1 || echo 0)"
+    json_add_string schedule "Setiap hari 04:17"
+    json_close_object
+
+    json_dump
+   ;;
+
+   *)
+    json_init
+    json_add_boolean ok 0
+    json_add_string message "Metode tidak tersedia"
+    json_dump
+   ;;
+  esac
+ ;;
+esac

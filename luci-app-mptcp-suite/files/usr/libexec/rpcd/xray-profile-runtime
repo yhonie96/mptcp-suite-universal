@@ -1,0 +1,284 @@
+#!/bin/sh
+. /usr/share/libubox/jshn.sh
+
+reply() {
+ json_init
+ json_add_boolean ok "$1"
+ json_add_string message "$2"
+ json_dump
+}
+
+valid_id() {
+ case "$1" in ''|*[!a-z0-9_-]*) return 1 ;; esac
+}
+
+load_profile() {
+ id="$1"
+ valid_id "$id" || return 1
+ [ "$(uci -q get mptcp_profiles.$id)" = profile ] || return 2
+
+ config="$(uci -q get mptcp_profiles.$id.config)"
+ service="$(uci -q get mptcp_profiles.$id.service)"
+ local_port="$(uci -q get mptcp_profiles.$id.local_port)"
+ vps_port="$(uci -q get mptcp_profiles.$id.vps_port)"
+ vtag="$(uci -q get mptcp_profiles.$id.outbound_tag)"
+ enabled="$(uci -q get mptcp_profiles.$id.enabled)"
+ return 0
+}
+
+protected_profile() {
+ case "$1" in main|limit5) return 0 ;; *) return 1 ;; esac
+}
+
+tunnel_test() {
+ cfg="$config"
+ test_port=12490
+ tmp="/tmp/xray-profile-test-$$.json"
+ log="/tmp/xray-profile-test-$$.log"
+
+ ss -lnt 2>/dev/null | grep -q "127.0.0.1:$test_port " &&
+  return 2
+
+ jq --arg tag "$vtag" --argjson port "$test_port" '
+  .inbounds=[{
+   "tag":"profile-test",
+   "listen":"127.0.0.1",
+   "port":$port,
+   "protocol":"socks",
+   "settings":{"auth":"noauth","udp":false}
+  }] |
+  .routing={
+   "domainStrategy":"AsIs",
+   "rules":[{
+    "type":"field",
+    "inboundTag":["profile-test"],
+    "outboundTag":$tag
+   }]
+  }
+ ' "$cfg" >"$tmp" || {
+  rm -f "$tmp" "$log"
+  return 1
+ }
+
+ chmod 600 "$tmp"
+ xray run -test -c "$tmp" >"$log" 2>&1 || {
+  rm -f "$tmp" "$log"
+  return 1
+ }
+
+ xray run -c "$tmp" >"$log" 2>&1 &
+ pid=$!
+ sleep 3
+
+ code="$(curl --socks5-hostname 127.0.0.1:$test_port \
+  -4 -sS --max-time 12 -o /dev/null \
+  -w '%{http_code}' \
+  https://connectivitycheck.gstatic.com/generate_204 \
+  2>/dev/null)"
+
+ kill "$pid" 2>/dev/null
+ wait "$pid" 2>/dev/null
+ rm -f "$tmp" "$log"
+
+ [ "$code" = 204 ]
+}
+
+case "$1" in
+ list)
+  echo '{
+   "dry_run":{"id":"String"},
+   "self_test":{},
+   "test_tunnel":{"id":"String"},
+   "activate":{"id":"String"},
+   "deactivate":{"id":"String"},
+   "delete_full":{"id":"String"}
+  }'
+ ;;
+
+ call)
+  case "$2" in
+   self_test)
+    main_ok=0
+    five_ok=0
+
+    xray run -test -c /etc/xray/config.json \
+     >/dev/null 2>&1 && main_ok=1
+    xray run -test -c /etc/xray-5mbps/config.json \
+     >/dev/null 2>&1 && five_ok=1
+
+    json_init
+    json_add_boolean ok "$([ "$main_ok" -eq 1 ] &&
+     [ "$five_ok" -eq 1 ] && echo 1 || echo 0)"
+    json_add_string message "Self-test selesai tanpa perubahan"
+    json_add_boolean main_valid "$main_ok"
+    json_add_boolean limit5_valid "$five_ok"
+    json_add_boolean changed 0
+    json_dump
+   ;;
+
+   dry_run)
+    json_load "$(cat)"
+    json_get_var id id
+    load_profile "$id" || {
+     reply 0 "Profil tidak ditemukan atau ID tidak valid"
+     exit 0
+    }
+
+    config_valid=0
+    service_exists=0
+    running=0
+    listening=0
+
+    xray run -test -c "$config" >/dev/null 2>&1 &&
+     config_valid=1
+    [ -x "/etc/init.d/$service" ] && service_exists=1
+    [ "$service_exists" -eq 1 ] &&
+     /etc/init.d/"$service" status 2>/dev/null |
+     grep -qx running && running=1
+    ss -lnt 2>/dev/null |
+     grep -q "127.0.0.1:$local_port " && listening=1
+
+    json_init
+    json_add_boolean ok 1
+    json_add_string message "Dry-run selesai; sistem tidak diubah"
+    json_add_string id "$id"
+    json_add_boolean protected \
+     "$(protected_profile "$id" && echo 1 || echo 0)"
+    json_add_boolean config_valid "$config_valid"
+    json_add_boolean service_exists "$service_exists"
+    json_add_boolean running "$running"
+    json_add_boolean listening "$listening"
+    json_add_boolean changed 0
+    json_dump
+   ;;
+
+   test_tunnel)
+    json_load "$(cat)"
+    json_get_var id id
+    load_profile "$id" || {
+     reply 0 "Profil tidak ditemukan"
+     exit 0
+    }
+
+    [ -s "$config" ] || {
+     reply 0 "Konfigurasi profil belum tersedia"
+     exit 0
+    }
+
+    if tunnel_test; then
+     reply 1 "Tunnel profil normal (HTTP 204)"
+    else
+     reply 0 "Uji tunnel profil gagal"
+    fi
+   ;;
+
+   activate)
+    json_load "$(cat)"
+    json_get_var id id
+    load_profile "$id" || {
+     reply 0 "Profil tidak ditemukan"
+     exit 0
+    }
+
+    protected_profile "$id" && {
+     reply 0 "Profil sistem dikelola oleh editor khusus"
+     exit 0
+    }
+
+    [ "$enabled" = 0 ] || {
+     reply 0 "Profil sudah aktif"
+     exit 0
+    }
+
+    [ -s "$config" ] && [ -x "/etc/init.d/$service" ] || {
+     reply 0 "Konfigurasi atau service belum tersedia"
+     exit 0
+    }
+
+    xray run -test -c "$config" >/dev/null 2>&1 || {
+     reply 0 "Konfigurasi profil tidak valid"
+     exit 0
+    }
+
+    tunnel_test || {
+     reply 0 "Tunnel gagal; profil tidak diaktifkan"
+     exit 0
+    }
+
+    "/etc/init.d/$service" start >/tmp/xray-profile-start.log 2>&1
+    sleep 4
+
+    healthy=1
+    "/etc/init.d/$service" status 2>/dev/null |
+     grep -qx running || healthy=0
+    ss -lnt 2>/dev/null |
+     grep -q "127.0.0.1:$local_port " || healthy=0
+
+    if [ "$healthy" -ne 1 ]; then
+     "/etc/init.d/$service" stop >/dev/null 2>&1
+     "/etc/init.d/$service" disable >/dev/null 2>&1
+     reply 0 "Aktivasi gagal; rollback otomatis selesai"
+     exit 0
+    fi
+
+    "/etc/init.d/$service" enable
+    uci set mptcp_profiles.$id.enabled='1'
+    uci commit mptcp_profiles
+
+    reply 1 "Profil aktif dan otomatis berjalan saat boot"
+   ;;
+
+   deactivate)
+    json_load "$(cat)"
+    json_get_var id id
+    load_profile "$id" || {
+     reply 0 "Profil tidak ditemukan"
+     exit 0
+    }
+
+    protected_profile "$id" && {
+     reply 0 "Profil sistem dilindungi"
+     exit 0
+    }
+
+    "/etc/init.d/$service" stop >/dev/null 2>&1
+    "/etc/init.d/$service" disable >/dev/null 2>&1
+
+    uci set mptcp_profiles.$id.enabled='0'
+    uci commit mptcp_profiles
+
+    reply 1 "Profil dinonaktifkan; file akun tetap tersimpan"
+   ;;
+
+   delete_full)
+    json_load "$(cat)"
+    json_get_var id id
+    load_profile "$id" || {
+     reply 0 "Profil tidak ditemukan"
+     exit 0
+    }
+
+    protected_profile "$id" && {
+     reply 0 "Profil sistem tidak dapat dihapus"
+     exit 0
+    }
+
+    [ "$enabled" = 0 ] || {
+     reply 0 "Nonaktifkan profil sebelum menghapus"
+     exit 0
+    }
+
+    "/etc/init.d/$service" stop >/dev/null 2>&1
+    "/etc/init.d/$service" disable >/dev/null 2>&1
+
+    rm -f "/etc/init.d/$service" "$config" "$config.tmp"
+    uci delete mptcp_profiles.$id
+    uci commit mptcp_profiles
+
+    reply 1 "Profil, service, dan konfigurasi berhasil dihapus"
+   ;;
+
+   *) reply 0 "Metode tidak tersedia" ;;
+  esac
+ ;;
+esac

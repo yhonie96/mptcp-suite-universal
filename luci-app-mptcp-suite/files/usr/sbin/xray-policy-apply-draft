@@ -1,0 +1,66 @@
+#!/bin/sh
+set -eu
+D=/etc/mptcp-suite/traffic-rules-draft.json
+M=/etc/xray/config.json
+L=/etc/xray-5mbps/config.json
+O=/tmp/xray-policy-candidate
+B=/etc/mptcp-suite/policy-backup
+mkdir -p "$O" "$B"
+test -s "$D" || { echo ERROR=no_draft; exit 1; }
+
+AD=$(jsonfilter -i "$D" -e '@.adblock')
+HD=$(jsonfilter -i "$D" -e '@.http_direct')
+BQ=$(jsonfilter -i "$D" -e '@.block_quic')
+TD=$(jsonfilter -i "$D" -e '@.tunnel_domains')
+DD=$(jsonfilter -i "$D" -e '@.direct_domains')
+Q="$(uci show firewall | grep -F ".name='Block-QUIC'" | cut -d. -f1-2 | head -n1)"
+[ -n "$Q" ] || { echo ERROR=quic_rule_not_found; exit 1; }
+
+make_one(){
+ jq --argjson ad "$3" --argjson hd "$4" \
+ --arg direct "$5" --arg tunnel "$6" '
+ .routing.rules |= map(
+  if .domain==["geosite:category-ads-all"] then
+   if $ad then . else empty end
+  elif .network=="tcp" and .port=="80" then
+   .outboundTag=(if $hd then $direct else $tunnel end)
+  else . end
+ )' "$1" >"$2"
+}
+
+make_one "$M" "$O/main.json" "$AD" "$HD" direct vless
+make_one "$L" "$O/limit.json" "$AD" "$HD" direct-5mbps vless-5mbps
+xray run -test -c "$O/main.json" >/dev/null
+xray run -test -c "$O/limit.json" >/dev/null
+
+[ "${1:-apply}" = check ] && { echo CANDIDATE_VALID; exit 0; }
+
+STAMP=$(date +%Y%m%d-%H%M%S)
+cp -p "$M" "$B/main-$STAMP.json"
+cp -p "$L" "$B/limit-$STAMP.json"
+cp -p /etc/config/firewall "$B/firewall-$STAMP"
+
+rollback(){
+ cp -p "$B/main-$STAMP.json" "$M"
+ cp -p "$B/limit-$STAMP.json" "$L"
+ cp -p "$B/firewall-$STAMP" /etc/config/firewall
+ /etc/init.d/firewall reload >/dev/null 2>&1 || true
+ /etc/init.d/xray restart >/dev/null 2>&1 || true
+ /etc/init.d/xray-5mbps restart >/dev/null 2>&1 || true
+ echo APPLY_ROLLBACK
+ exit 1
+}
+
+cp -p "$O/main.json" "$M"
+cp -p "$O/limit.json" "$L"
+uci set "$Q.enabled=$([ "$BQ" = true ] && echo 1 || echo 0)"
+uci commit firewall
+/etc/init.d/firewall reload >/dev/null 2>&1 || rollback
+/etc/init.d/xray restart >/dev/null 2>&1 || rollback
+/etc/init.d/xray-5mbps restart >/dev/null 2>&1 || rollback
+sleep 3
+/etc/init.d/xray status >/dev/null 2>&1 || rollback
+/etc/init.d/xray-5mbps status >/dev/null 2>&1 || rollback
+nslookup google.com 192.168.2.1 >/dev/null 2>&1 || rollback
+rm -f "$D"
+echo APPLY_OK

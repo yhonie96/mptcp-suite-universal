@@ -1,0 +1,287 @@
+#!/bin/sh
+. /usr/share/libubox/jshn.sh
+
+DRAFT=/etc/mptcp-suite/xray-profile-draft.json
+
+reply() {
+ json_init
+ json_add_boolean ok "$1"
+ json_add_string message "$2"
+ json_dump
+}
+
+valid_id() {
+ case "$1" in
+  ''|*[!a-z0-9_-]*) return 1 ;;
+ esac
+}
+
+valid_host() {
+ case "$1" in
+  ''|*[!A-Za-z0-9.:-]*) return 1 ;;
+ esac
+}
+
+profile_exists() {
+ [ "$(uci -q get mptcp_profiles.$1)" = profile ]
+}
+
+port_used() {
+ option="$1"
+ value="$2"
+ exclude="$3"
+
+ for section in $(uci -q show mptcp_profiles |
+  awk -F'[.=]' '$3=="profile"{print $2}'); do
+  [ "$section" = "$exclude" ] && continue
+  [ "$(uci -q get mptcp_profiles.$section.$option)" = "$value" ] &&
+   return 0
+ done
+ return 1
+}
+
+case "$1" in
+ list)
+  echo '{
+   "status":{},
+   "save_draft":{
+    "id":"String","name":"String","server":"String",
+    "vps_port":"String","local_port":"String",
+    "limit_label":"String"
+   },
+   "apply_draft":{},
+   "discard_draft":{},
+   "delete":{"id":"String"}
+  }'
+ ;;
+
+ call)
+  case "$2" in
+   status)
+    json_init
+    json_add_boolean draft "$([ -s "$DRAFT" ] && echo 1 || echo 0)"
+
+    if [ -s "$DRAFT" ]; then
+     json_add_object draft_detail
+     json_add_string id "$(jsonfilter -i "$DRAFT" -e '@.id')"
+     json_add_string name "$(jsonfilter -i "$DRAFT" -e '@.name')"
+     json_add_string server "$(jsonfilter -i "$DRAFT" -e '@.server')"
+     json_add_int vps_port "$(jsonfilter -i "$DRAFT" -e '@.vps_port')"
+     json_add_int local_port "$(jsonfilter -i "$DRAFT" -e '@.local_port')"
+     json_add_string limit_label \
+      "$(jsonfilter -i "$DRAFT" -e '@.limit_label')"
+     json_close_object
+    fi
+
+    json_add_array profiles
+
+    for section in $(uci -q show mptcp_profiles |
+     awk -F'[.=]' '$3=="profile"{print $2}'); do
+
+     name="$(uci -q get mptcp_profiles.$section.name)"
+     enabled="$(uci -q get mptcp_profiles.$section.enabled)"
+     config="$(uci -q get mptcp_profiles.$section.config)"
+     service="$(uci -q get mptcp_profiles.$section.service)"
+     local_port="$(uci -q get mptcp_profiles.$section.local_port)"
+     vps_port="$(uci -q get mptcp_profiles.$section.vps_port)"
+     limit="$(uci -q get mptcp_profiles.$section.limit_label)"
+     server="$(uci -q get mptcp_profiles.$section.server)"
+     freedom="$(uci -q get mptcp_profiles.$section.freedom_tag)"
+
+     target=""
+     [ -f "$config" ] && target="$(jq -r --arg t "$freedom" \
+      '.outbounds[]?|select(.tag==$t)|.settings.redirect // ""' \
+      "$config" 2>/dev/null)"
+
+     [ -n "$server" ] || server="${target%:*}"
+
+     running=0
+     [ -x "/etc/init.d/$service" ] &&
+      /etc/init.d/"$service" status 2>/dev/null |
+      grep -qx running && running=1
+
+     listening=0
+     ss -lnt 2>/dev/null |
+      grep -q "127.0.0.1:$local_port " && listening=1
+
+     protected=0
+     case "$section" in main|limit5) protected=1 ;; esac
+
+     json_add_object ""
+     json_add_string id "$section"
+     json_add_string name "$name"
+     json_add_string target "$target"
+     json_add_string server "$server"
+     json_add_string config "$config"
+     json_add_string service "$service"
+     json_add_string limit "$limit"
+     json_add_int local_port "${local_port:-0}"
+     json_add_int vps_port "${vps_port:-0}"
+     json_add_boolean enabled "${enabled:-0}"
+     json_add_boolean running "$running"
+     json_add_boolean listening "$listening"
+     json_add_boolean protected "$protected"
+     json_close_object
+    done
+
+    json_close_array
+    json_dump
+   ;;
+
+   save_draft)
+    json_load "$(cat)"
+    json_get_var id id
+    json_get_var name name
+    json_get_var server server
+    json_get_var vps_port vps_port
+    json_get_var local_port local_port
+    json_get_var limit_label limit_label
+
+    valid_id "$id" || {
+     reply 0 "ID hanya boleh huruf kecil, angka, garis dan underscore"
+     exit 0
+    }
+
+    [ -n "$name" ] || {
+     reply 0 "Nama profil wajib diisi"
+     exit 0
+    }
+
+    valid_host "$server" || {
+     reply 0 "Alamat VPS tidak valid"
+     exit 0
+    }
+
+    case "$vps_port:$local_port" in
+     *[!0-9:]*|:*|*:)
+      reply 0 "Port harus berupa angka"
+      exit 0
+     ;;
+    esac
+
+    [ "$vps_port" -ge 1 ] && [ "$vps_port" -le 65535 ] &&
+    [ "$local_port" -ge 1024 ] && [ "$local_port" -le 65535 ] || {
+     reply 0 "Port VPS 1-65535; port lokal 1024-65535"
+     exit 0
+    }
+
+    port_used vps_port "$vps_port" "$id" && {
+     reply 0 "Port VPS sudah digunakan profil lain"
+     exit 0
+    }
+
+    port_used local_port "$local_port" "$id" && {
+     reply 0 "Port lokal sudah digunakan profil lain"
+     exit 0
+    }
+
+    mkdir -p /etc/mptcp-suite
+    chmod 700 /etc/mptcp-suite
+
+    json_init
+    json_add_string id "$id"
+    json_add_string name "$name"
+    json_add_string server "$server"
+    json_add_int vps_port "$vps_port"
+    json_add_int local_port "$local_port"
+    json_add_string limit_label "${limit_label:-Tanpa limit}"
+    json_dump >"$DRAFT"
+    chmod 600 "$DRAFT"
+
+    reply 1 "Draft profil tersimpan; Xray aktif tidak berubah"
+   ;;
+
+   apply_draft)
+    [ -s "$DRAFT" ] || {
+     reply 0 "Draft belum tersedia"
+     exit 0
+    }
+
+    id="$(jsonfilter -i "$DRAFT" -e '@.id')"
+    name="$(jsonfilter -i "$DRAFT" -e '@.name')"
+    server="$(jsonfilter -i "$DRAFT" -e '@.server')"
+    vps_port="$(jsonfilter -i "$DRAFT" -e '@.vps_port')"
+    local_port="$(jsonfilter -i "$DRAFT" -e '@.local_port')"
+    limit_label="$(jsonfilter -i "$DRAFT" -e '@.limit_label')"
+
+    valid_id "$id" || {
+     reply 0 "Draft tidak valid"
+     exit 0
+    }
+
+    is_new=0
+    profile_exists "$id" || is_new=1
+
+    uci -q batch <<UCI
+set mptcp_profiles.$id=profile
+set mptcp_profiles.$id.name='$name'
+set mptcp_profiles.$id.server='$server'
+set mptcp_profiles.$id.vps_port='$vps_port'
+set mptcp_profiles.$id.local_port='$local_port'
+set mptcp_profiles.$id.limit_label='$limit_label'
+UCI
+
+    if [ "$is_new" -eq 1 ]; then
+     uci set mptcp_profiles.$id.enabled='0'
+     uci set mptcp_profiles.$id.config="/etc/xray-profiles/$id.json"
+     uci set mptcp_profiles.$id.service="xray-profile-$id"
+     uci set mptcp_profiles.$id.outbound_tag="vless-$id"
+     uci set mptcp_profiles.$id.freedom_tag="freedom-$id"
+    fi
+
+    uci commit mptcp_profiles || {
+     reply 0 "Gagal menyimpan profil"
+     exit 0
+    }
+
+    rm -f "$DRAFT"
+    reply 1 "Metadata profil diterapkan; profil baru tetap nonaktif"
+   ;;
+
+   discard_draft)
+    rm -f "$DRAFT"
+    reply 1 "Draft profil dihapus"
+   ;;
+
+   delete)
+    json_load "$(cat)"
+    json_get_var id id
+
+    valid_id "$id" || {
+     reply 0 "ID profil tidak valid"
+     exit 0
+    }
+
+    case "$id" in
+     main|limit5)
+      reply 0 "Profil sistem aktif dilindungi"
+      exit 0
+     ;;
+    esac
+
+    profile_exists "$id" || {
+     reply 0 "Profil tidak ditemukan"
+     exit 0
+    }
+
+    enabled="$(uci -q get mptcp_profiles.$id.enabled)"
+    [ "$enabled" = 0 ] || {
+     reply 0 "Nonaktifkan profil sebelum menghapus"
+     exit 0
+    }
+
+    service="$(uci -q get mptcp_profiles.$id.service)"
+    if [ -x "/etc/init.d/$service" ]; then
+     reply 0 "Profil memiliki service; hapus ditolak demi keamanan"
+     exit 0
+    fi
+
+    uci delete mptcp_profiles.$id
+    uci commit mptcp_profiles
+    reply 1 "Metadata profil dihapus"
+   ;;
+
+   *) reply 0 "Metode tidak tersedia" ;;
+  esac
+ ;;
+esac

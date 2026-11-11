@@ -1,0 +1,261 @@
+#!/bin/sh
+. /usr/share/libubox/jshn.sh
+
+reply() {
+ json_init
+ json_add_boolean ok "$1"
+ json_add_string message "$2"
+ json_dump
+}
+
+valid_iface() {
+ case "$1" in
+  ''|*[!A-Za-z0-9_.:-]*) return 1 ;;
+ esac
+ [ -e "/sys/class/net/$1" ]
+}
+
+add_sources() {
+ json_add_array sources
+ sections="$(uci -q show network |
+  awk -F'[.=]' '$3=="interface"{print $2}')"
+
+ for section in $sections; do
+  device="$(uci -q get network.$section.device)"
+  [ -n "$device" ] || continue
+  [ "$device" = lo ] && continue
+  [ "$device" = br-lan ] && continue
+
+  proto="$(uci -q get network.$section.proto)"
+  metric="$(uci -q get network.$section.metric)"
+  auto="$(uci -q get network.$section.auto)"
+  [ -n "$auto" ] || auto=1
+
+  up=0
+  ifstatus "$section" 2>/dev/null |
+   jsonfilter -e '@.up' | grep -qx true && up=1
+
+  gateway="$(ip -4 route show default dev "$device" 2>/dev/null | awk 'NR==1{print $3}')"
+  rx="$(cat /sys/class/net/"$device"/statistics/rx_bytes 2>/dev/null)"
+  tx="$(cat /sys/class/net/"$device"/statistics/tx_bytes 2>/dev/null)"
+  [ -n "$rx" ] || rx=0
+  [ -n "$tx" ] || tx=0
+  ipaddr="$(ip -4 -o addr show dev "$device" scope global \
+   2>/dev/null | awk 'NR==1{print $4}')"
+
+  state=unknown
+  grep -xqF "$device" /run/bsbf-mptcp-supported \
+   2>/dev/null && state=supported
+  grep -xqF "$device" /run/bsbf-mptcp-no-connectivity \
+   2>/dev/null && state=no-internet
+  grep -xqF "$device" /run/bsbf-mptcp-not-supported \
+   2>/dev/null && state=not-supported
+
+  backup=0
+  grep -xqF "$device" \
+   /etc/bsbf/bsbf-mptcp-subflow-backup \
+   2>/dev/null && backup=1
+
+  json_add_object ""
+  json_add_string name "$section"
+  json_add_string device "$device"
+  json_add_string proto "${proto:-unknown}"
+  json_add_string metric "${metric:-0}"
+  json_add_string ip "${ipaddr:-none}"
+  json_add_string gateway "${gateway:-none}"
+  json_add_int rx_bytes "$rx"
+  json_add_int tx_bytes "$tx"
+  json_add_string state "$state"
+  json_add_boolean up "$up"
+  json_add_boolean autostart "$auto"
+  json_add_boolean backup "$backup"
+  json_close_object
+ done
+ json_close_array
+}
+
+case "$1" in
+ list)
+  echo '{
+   "sources":{},
+   "test":{"iface":"String"},
+   "health":{"iface":"String"},
+   "settings":{},
+   "set_backup":{"iface":"String","enabled":"String"},
+   "set_mode":{"mode":"String","primary":"String"},
+   "clean_runtime":{}
+  }'
+ ;;
+
+ call)
+  case "$2" in
+   sources)
+    json_init
+    add_sources
+    json_dump
+   ;;
+
+   health)
+    json_load "$(cat)"
+    json_get_var iface iface
+
+    valid_iface "$iface" || {
+     reply 0 "Interface tidak valid"
+     exit 0
+    }
+
+    output="$(fping -c 3 -q -t 1000 -I "$iface" 1.1.1.1 2>&1)"
+    stats="$(echo "$output" | awk -F'= ' '/xmt\/rcv\/%loss/{print $2}' | tail -n1)"
+    loss="$(echo "$stats" | awk -F'[,/]' '{gsub(/%/,"",$3); print $3}')"
+    latency="$(echo "$output" | awk -F'min/avg/max = ' 'NF>1 {split($2,a,"/"); print a[2]}' | tail -n1)"
+
+    [ -n "$loss" ] || loss=100
+    [ -n "$latency" ] || latency=0
+
+    ok=0
+    [ "$loss" -lt 100 ] 2>/dev/null && ok=1
+
+    json_init
+    json_add_boolean ok "$ok"
+    json_add_string iface "$iface"
+    json_add_int loss "$loss"
+    json_add_string latency "$latency"
+    json_dump
+   ;;
+
+   settings)
+    json_init
+    add_sources
+    endpoints="$(ip mptcp endpoint show 2>/dev/null |
+     grep -c .)"
+    subflows="$(ip mptcp limits show 2>/dev/null |
+     awk '{for(i=1;i<=NF;i++) if($i=="subflows") print $(i+1)}')"
+    json_add_int endpoints "${endpoints:-0}"
+    json_add_int subflows "${subflows:-0}"
+    mode="$(cat /etc/bsbf/bsbf-mptcp-mode 2>/dev/null)"
+    primary="$(cat /etc/bsbf/bsbf-mptcp-primary 2>/dev/null)"
+    [ -n "$mode" ] || mode=combine
+    json_add_string mode "$mode"
+    json_add_string primary "$primary"
+    json_dump
+   ;;
+
+   test)
+    json_load "$(cat)"
+    json_get_var iface iface
+
+    valid_iface "$iface" || {
+     reply 0 "Interface tidak valid"
+     exit 0
+    }
+
+    start="$(date +%s)"
+    if ping -I "$iface" -c 2 -W 2 1.1.1.1 \
+     >/dev/null 2>&1; then
+     ok=1
+    else
+     ok=0
+    fi
+
+    json_init
+    json_add_boolean ok "$ok"
+    json_add_string iface "$iface"
+    json_add_int seconds "$(( $(date +%s) - start ))"
+    json_dump
+   ;;
+
+   set_backup)
+    json_load "$(cat)"
+    json_get_var iface iface
+    json_get_var enabled enabled
+
+    valid_iface "$iface" || {
+     reply 0 "Interface tidak valid"
+     exit 0
+    }
+
+    mkdir -p /etc/bsbf
+    file=/etc/bsbf/bsbf-mptcp-subflow-backup
+    touch "$file"
+
+    grep -vxF "$iface" "$file" >"$file.tmp" || true
+    case "$enabled" in
+     1|true) echo "$iface" >>"$file.tmp" ;;
+    esac
+
+    sort -u "$file.tmp" >"$file"
+    rm -f "$file.tmp"
+    reply 1 "Pengaturan backup tersimpan"
+   ;;
+
+   set_mode)
+    json_load "$(cat)"
+    json_get_var mode mode
+    json_get_var primary primary
+
+    mkdir -p /etc/bsbf
+    file=/etc/bsbf/bsbf-mptcp-subflow-backup
+    tmp="$file.tmp"
+    : >"$tmp"
+
+    case "$mode" in
+     combine)
+      :
+     ;;
+     primary)
+      valid_iface "$primary" || {
+       rm -f "$tmp"
+       reply 0 "Interface utama tidak valid"
+       exit 0
+      }
+
+      if ! ping -I "$primary" -c 2 -W 2 1.1.1.1 >/dev/null 2>&1; then
+       rm -f "$tmp"
+       reply 0 "Jalur utama tidak memiliki akses internet"
+       exit 0
+      fi
+
+      for section in $(uci -q show network | awk -F"[.=]" '$3=="interface"{print $2}'); do
+       iface="$(uci -q get network.$section.device)"
+       [ -n "$iface" ] || continue
+       [ "$iface" = "$primary" ] && continue
+       [ "$iface" = "lo" ] && continue
+       [ "$iface" = "br-lan" ] && continue
+       ping -I "$iface" -c 1 -W 2 1.1.1.1 >/dev/null 2>&1 && echo "$iface" >>"$tmp"
+      done
+     ;;
+     *)
+      rm -f "$tmp"
+      reply 0 "Mode tidak valid"
+      exit 0
+     ;;
+    esac
+
+    sort -u "$tmp" >"$file"
+    rm -f "$tmp"
+    echo "$mode" >/etc/bsbf/bsbf-mptcp-mode
+    if [ "$mode" = primary ]; then
+     echo "$primary" >/etc/bsbf/bsbf-mptcp-primary
+    else
+     rm -f /etc/bsbf/bsbf-mptcp-primary
+    fi
+    reply 1 "Mode MPTCP berhasil diterapkan"
+   ;;
+
+   clean_runtime)
+    for file in \
+     /run/bsbf-mptcp-supported \
+     /run/bsbf-mptcp-no-connectivity \
+     /run/bsbf-mptcp-not-supported
+    do
+     [ -f "$file" ] || continue
+     sort -u "$file" >"$file.tmp"
+     mv "$file.tmp" "$file"
+    done
+    reply 1 "Status duplikat dirapikan"
+   ;;
+
+   *) reply 0 "Metode tidak tersedia" ;;
+  esac
+ ;;
+esac
