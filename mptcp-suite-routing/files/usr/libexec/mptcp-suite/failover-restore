@@ -1,0 +1,32 @@
+#!/bin/sh
+set -eu
+SNAP="${1:-}"
+TABLE="${2:-}"
+[ -r "$SNAP" ] || { echo "ERROR=snapshot_missing"; exit 1; }
+case "$TABLE" in ""|*[!0-9]*) echo "ERROR=invalid_table"; exit 1;; esac
+
+SECTION=
+while IFS= read -r LINE; do
+ case "$LINE" in
+  "=== MAIN ===") SECTION=main; continue ;;
+  "=== TABLE ===") SECTION=table; continue ;;
+  default\ via\ *\ dev\ *\ metric\ *)
+   set -- $LINE
+   GW="$3"; DEV="$5"; METRIC="$7"
+   case "$GW:$DEV:$METRIC" in
+    *[!0-9.A-Za-z_:-]*) echo "ERROR=unsafe_snapshot"; exit 2 ;;
+   esac
+   if [ "$SECTION" = main ]; then
+    ip route replace default via "$GW" dev "$DEV" metric "$METRIC"
+   elif [ "$SECTION" = table ]; then
+    ip route replace default via "$GW" dev "$DEV" table "$TABLE" metric "$METRIC"
+   else
+    echo "ERROR=invalid_snapshot"; exit 2
+   fi
+  ;;
+  "") ;;
+  *) echo "ERROR=unsafe_snapshot"; exit 2 ;;
+ esac
+done <"$SNAP"
+
+echo SNAPSHOT_RESTORE_OK
