@@ -8,8 +8,10 @@ O="$(sh "$F" RESTORE eth1 192.168.8.1 7 phy0-sta0 192.168.1.1 9 102)"
 echo "$O" | grep -Fq 'table 102 metric 7'
 echo "$O" | grep -Fq 'route replace default via 192.168.8.1 dev eth1 table 102 metric 7'
 echo "$O" | grep -Fq 'route del default via 192.168.1.1 dev phy0-sta0 table 102 metric 9'
-[ "$(sh "$F" KEEP x x 1 x x 2 102)" = NO_CHANGE ]
+[ "$(sh "$F" KEEP eth1 192.168.8.1 7 phy0-sta0 192.168.1.1 9 102)" = NO_CHANGE ]
 ! sh "$F" BAD x x 1 x x 2 102 >/dev/null 2>&1
 echo FAILOVER_APPLY_DRYRUN_OK
 ! sh "$F" FAILOVER "" x 7 y z 9 102 >/dev/null 2>&1
 ! sh "$F" FAILOVER x y bad z q 9 102 >/dev/null 2>&1
+! sh "$F" FAILOVER "eth1;reboot" 1.1.1.1 7 x 2.2.2.2 9 102 >/dev/null 2>&1
+! sh "$F" FAILOVER eth1 "1.1.1.1;reboot" 7 x 2.2.2.2 9 102 >/dev/null 2>&1

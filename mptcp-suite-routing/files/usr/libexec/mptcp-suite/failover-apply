@@ -10,8 +10,10 @@ SECONDARY_METRIC="${7:-}"
 TABLE="${8:-}"
 
 number(){ case "$1" in ""|*[!0-9]*) return 1;; esac; }
-[ -n "$PRIMARY_DEV" ] && [ -n "$PRIMARY_GW" ] &&
-[ -n "$SECONDARY_DEV" ] && [ -n "$SECONDARY_GW" ] &&
+device(){ case "$1" in ""|*[!A-Za-z0-9_.:-]*) return 1;; esac; }
+ipv4(){ case "$1" in ""|*[!0-9.]*) return 1;; esac; }
+device "$PRIMARY_DEV" && ipv4 "$PRIMARY_GW" &&
+device "$SECONDARY_DEV" && ipv4 "$SECONDARY_GW" &&
 number "$PRIMARY_METRIC" && number "$SECONDARY_METRIC" &&
 number "$TABLE" || { echo "ERROR=invalid_parameters"; exit 1; }
 
