@@ -10,7 +10,10 @@ cat >"$D/apply" <<'MOCK'
 echo "$1" >>"$MOCK_ACTIONS"
 case "$1" in
  FAILOVER) echo "ip route replace default via 192.168.1.1 dev phy0-sta0 table 102 metric 9" ;;
- RESTORE) echo "ip route replace default via 192.168.8.1 dev eth1 table 102 metric 7" ;;
+ RESTORE)
+  [ "${MOCK_ROLLBACK_FAIL:-0}" = 1 ] && exit 1
+  echo "ip route replace default via 192.168.8.1 dev eth1 table 102 metric 7"
+ ;;
 esac
 MOCK
 
@@ -32,7 +35,15 @@ export MOCK_ACTIONS="$D/actions"
 export MOCK_EXEC="$D/executed"
 export MPTCP_FAILOVER_APPLY=1
 export MPTCP_FAILOVER_APPLY_BIN="$D/apply"
-export MPTCP_FAILOVER_RESTORE_BIN="$PWD/mptcp-suite-routing/files/usr/libexec/mptcp-suite/failover-restore"
+REAL_RESTORE="$PWD/mptcp-suite-routing/files/usr/libexec/mptcp-suite/failover-restore"
+cat >"$D/restore" <<'MOCK'
+#!/bin/sh
+[ "${MOCK_RESTORE_FAIL:-0}" = 1 ] && exit 1
+exec "$REAL_RESTORE" "$@"
+MOCK
+chmod 755 "$D/restore"
+export REAL_RESTORE
+export MPTCP_FAILOVER_RESTORE_BIN="$D/restore"
 export PATH="$D/bin:$PATH"
 
 MOCK_HTTP=204 sh "$E" --apply FAILOVER eth1 192.168.8.1 7 phy0-sta0 192.168.1.1 9 102
@@ -54,4 +65,23 @@ grep -qx FAILOVER "$MOCK_ACTIONS"
 grep -qx RESTORE "$MOCK_ACTIONS"
 grep -Fq "route replace default via 192.168.8.1" "$MOCK_EXEC"
 
+export MOCK_ROLLBACK_FAIL=1
+set +e
+OUT="$(sh "$E" --apply FAILOVER eth1 192.168.8.1 7 phy0-sta0 192.168.1.1 9 102 2>&1)"
+RC=$?
+set -e
+[ "$RC" -eq 6 ]
+echo "$OUT" | grep -Fq "ERROR=rollback_action_failed"
+unset MOCK_ROLLBACK_FAIL
+
+export MOCK_RESTORE_FAIL=1
+set +e
+OUT="$(sh "$E" --apply FAILOVER eth1 192.168.8.1 7 phy0-sta0 192.168.1.1 9 102 2>&1)"
+RC=$?
+set -e
+[ "$RC" -eq 7 ]
+echo "$OUT" | grep -Fq "ERROR=snapshot_restore_failed"
+unset MOCK_RESTORE_FAIL
+
+echo FAILOVER_TRANSACTION_NEGATIVE_OK
 echo FAILOVER_TRANSACTION_MOCK_OK
