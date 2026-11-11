@@ -117,58 +117,25 @@ return view.extend({
  render: function(data) {
   return E([], [
    E('style', {}, `
-.tr-hero{
- padding:16px;border-radius:13px;color:#fff;margin-bottom:14px;
- background:linear-gradient(135deg,#3b355f,#62558f)
-}
-.tr-grid{
- display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px
-}
-.tr-card{
- padding:15px;border:1px solid rgba(127,127,127,.25);
- border-radius:12px
-}
-.tr-card h3{margin:0}
-.tr-head,.tr-item,.tr-summary{
- display:flex;justify-content:space-between;gap:12px;align-items:center
-}
-.tr-item{
- padding:10px 0;border-bottom:1px solid rgba(127,127,127,.18)
-}
-.tr-detail{font-size:12px;opacity:.65;margin-top:3px}
-.tr-badge{
- padding:5px 9px;border-radius:15px;color:#fff;
- font-size:11px;font-weight:700;white-space:nowrap
-}
-.tr-ok{background:#2f855a}.tr-bad{background:#c53030}
-.tr-summary{padding-top:12px;font-size:12px;opacity:.75}
-.tr-note{
- margin-top:13px;padding:12px;border-left:4px solid #4299e1;
- background:rgba(66,153,225,.08)
-}
-
-.tr-setting{
- display:flex;justify-content:space-between;align-items:center;
- padding:11px 0;border-bottom:1px solid rgba(127,127,127,.18)
-}
-.tr-setting input{width:22px;height:22px}
-.tr-field{display:block;margin-top:14px}
-.tr-field span{display:block;margin-bottom:6px;font-weight:700}
-.tr-field textarea{width:100%;box-sizing:border-box}
-.tr-draft{
- margin-top:13px;padding:10px;border-radius:8px;
- background:rgba(127,127,127,.10)
-}
-.tr-actions{
- display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
- gap:8px;margin-top:13px
-}
-.tr-actions .btn{width:100%}
-@media(max-width:600px){
- .tr-grid{grid-template-columns:1fr}
- .tr-summary{align-items:flex-start;flex-direction:column}
- .tr-actions{grid-template-columns:1fr}
-}
+.tr-hero{padding:21px;border-radius:19px;color:#fff;margin-bottom:15px;background:linear-gradient(135deg,#4338ca,#2563eb);box-shadow:0 11px 28px rgba(0,0,0,.2)}
+.tr-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px}
+.tr-card{padding:18px;border:1px solid rgba(127,127,127,.25);border-radius:17px;background:linear-gradient(145deg,rgba(127,127,127,.09),rgba(127,127,127,.02));box-shadow:0 6px 18px rgba(0,0,0,.09)}
+.tr-card h3{margin:0;font-size:19px}
+.tr-head,.tr-item,.tr-summary{display:flex;justify-content:space-between;gap:12px;align-items:center}
+.tr-item{padding:12px 0;border-bottom:1px solid rgba(127,127,127,.15)}
+.tr-detail{font-size:12px;opacity:.65;margin-top:4px}
+.tr-badge{padding:6px 10px;border-radius:999px;color:#fff;font-size:11px;font-weight:800;white-space:nowrap}
+.tr-ok{background:#168750}.tr-bad{background:#c53030}
+.tr-summary{padding-top:13px;font-size:12px;opacity:.75}
+.tr-note{margin-top:13px;padding:13px;border-left:4px solid #3b82f6;background:rgba(59,130,246,.09);border-radius:9px;line-height:1.5}
+.tr-setting{display:flex;justify-content:space-between;align-items:center;padding:13px 0;border-bottom:1px solid rgba(127,127,127,.15)}
+.tr-setting input{width:24px;height:24px}
+.tr-field{display:block;margin-top:14px}.tr-field span{display:block;margin-bottom:6px;font-weight:750}
+.tr-field textarea{width:100%;box-sizing:border-box;border-radius:10px}
+.tr-draft{margin-top:13px;padding:11px;border-radius:9px;background:rgba(245,158,11,.09)}
+.tr-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-top:14px}
+.tr-actions .btn{width:100%;border-radius:11px!important;padding:10px!important}
+@media(max-width:600px){.tr-grid{grid-template-columns:1fr}.tr-summary{align-items:flex-start;flex-direction:column}.tr-actions{grid-template-columns:1fr}}
 `),
 
    E('h2', {}, 'Aturan Trafik'),
