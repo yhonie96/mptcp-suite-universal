@@ -12,12 +12,13 @@ TABLE="${8:-}"
 case "$ACTION" in
  FAILOVER)
   echo "ip route del default via $PRIMARY_GW dev $PRIMARY_DEV metric $PRIMARY_METRIC"
+  echo "ip route del default via $PRIMARY_GW dev $PRIMARY_DEV table $TABLE metric $PRIMARY_METRIC"
   echo "ip route replace default via $SECONDARY_GW dev $SECONDARY_DEV table $TABLE metric $SECONDARY_METRIC"
  ;;
  RESTORE)
   echo "ip route replace default via $PRIMARY_GW dev $PRIMARY_DEV metric $PRIMARY_METRIC"
-  echo "ip route flush table $TABLE"
-  echo "ip route add default via $PRIMARY_GW dev $PRIMARY_DEV table $TABLE metric $PRIMARY_METRIC"
+  echo "ip route del default via $SECONDARY_GW dev $SECONDARY_DEV table $TABLE metric $SECONDARY_METRIC"
+  echo "ip route replace default via $PRIMARY_GW dev $PRIMARY_DEV table $TABLE metric $PRIMARY_METRIC"
  ;;
  KEEP) echo "NO_CHANGE" ;;
  *) echo "ERROR=invalid_action"; exit 1 ;;
