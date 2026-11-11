@@ -22,6 +22,8 @@ define Build/Compile
 endef
 
 define Package/mptcp-suite-core/install
+        $(INSTALL_DIR) $(1)/etc/init.d
+        $(INSTALL_BIN) ./files/etc/init.d/mptcp-suite-core $(1)/etc/init.d/
 	$(INSTALL_DIR) $(1)/etc/config
 	$(INSTALL_CONF) ./files/etc/config/mptcp_suite $(1)/etc/config/mptcp_suite
 	$(INSTALL_DIR) $(1)/usr/libexec/mptcp-suite

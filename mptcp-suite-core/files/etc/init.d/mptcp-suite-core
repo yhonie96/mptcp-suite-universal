@@ -1,0 +1,8 @@
+#!/bin/sh /etc/rc.common
+START=20
+start() {
+ /usr/libexec/mptcp-suite/apply-limits
+}
+reload() {
+ start
+}

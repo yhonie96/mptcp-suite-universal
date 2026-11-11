@@ -57,20 +57,23 @@ jobs:
           ROOT="$(mktemp -d)"
           trap 'rm -rf "$ROOT"' EXIT
 
-          install -d "$ROOT/etc/config" "$ROOT/usr/libexec/mptcp-suite"
+          install -d "$ROOT/etc/config" "$ROOT/etc/init.d" "$ROOT/usr/libexec/mptcp-suite"
           install -m 600 "$P/files/etc/config/mptcp_suite" "$ROOT/etc/config/"
+          install -m 755 "$P/files/etc/init.d/mptcp-suite-core" "$ROOT/etc/init.d/"
           install -m 755 "$P"/files/usr/libexec/mptcp-suite/* "$ROOT/usr/libexec/mptcp-suite/"
 
-          test "$(find "$ROOT" -type f | wc -l)" -eq 5
+          test "$(find "$ROOT" -type f | wc -l)" -eq 7
           test "$(stat -c %a "$ROOT/etc/config/mptcp_suite")" = 600
+          test "$(stat -c %a "$ROOT/etc/init.d/mptcp-suite-core")" = 755
+          sh -n "$ROOT/etc/init.d/mptcp-suite-core"
 
           for F in "$ROOT"/usr/libexec/mptcp-suite/*; do
             test "$(stat -c %a "$F")" = 755
             sh -n "$F"
           done
 
-          ! find "$ROOT" -type f | grep -Eq '/etc/init.d/|/etc/hotplug.d/'
           rm -rf "$ROOT/usr/libexec/mptcp-suite"
+          rm -rf "$ROOT/etc/init.d"
           test -f "$ROOT/etc/config/mptcp_suite"
           echo "INSTALL_UNINSTALL_SIMULATION_OK"
 

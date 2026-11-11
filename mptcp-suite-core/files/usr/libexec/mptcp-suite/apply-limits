@@ -1,0 +1,6 @@
+#!/bin/sh
+set -eu
+S="$(uci -q get mptcp_suite.core.subflows)"
+A="$(uci -q get mptcp_suite.core.add_addr_accepted)"
+case "$S:$A" in *[!0-9:]*|:*|*:) exit 1;; esac
+ip mptcp limits set subflows "$S" add_addr_accepted "$A"

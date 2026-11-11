@@ -3,6 +3,8 @@ config core 'core'
 	option version '0.1'
 	option lan_network 'lan'
 	option auto_detect '1'
+        option subflows '8'
+        option add_addr_accepted '8'
 
 config routing 'routing'
 	option allocated '0'
