@@ -1,15 +1,25 @@
 #!/bin/sh
 set -eu
+
 DIR=/etc/mptcp-suite
-M="$DIR/tunnel-main.json"
-L="$DIR/tunnel-5mbps.json"
+MANIFEST="$DIR/tunnel-profiles.tsv"
 MODE="$(cat /etc/bsbf/bsbf-mptcp-mode 2>/dev/null || echo combine)"
 PRIMARY="$(cat /etc/bsbf/bsbf-mptcp-primary 2>/dev/null || true)"
 BACKUPS="$(cat /etc/bsbf/bsbf-mptcp-subflow-backup 2>/dev/null || true)"
 
-test -s "$M" && test -s "$L" || { echo ERROR=missing_tunnel_backup; exit 1; }
-xray run -test -c "$M" >/dev/null
-xray run -test -c "$L" >/dev/null
+[ -s "$MANIFEST" ] || {
+ echo ERROR=missing_profile_manifest
+ exit 1
+}
+
+COUNT=0
+while IFS="$(printf '\t')" read -r ID CFG SVC VT FT SNAP; do
+ [ -n "$ID" ] || continue
+ COUNT=$((COUNT+1))
+ [ -s "$SNAP" ] || { echo "ERROR=missing_tunnel_backup:$ID"; exit 1; }
+ xray run -test -c "$SNAP" >/dev/null 2>&1 ||
+  { echo "ERROR=invalid_tunnel_backup:$ID"; exit 1; }
+done <"$MANIFEST"
 
 case "$MODE" in
  primary)
@@ -17,7 +27,8 @@ case "$MODE" in
   DEVICES="$PRIMARY $BACKUPS"
  ;;
  combine)
-  DEVICES="$(ip -4 route show default | awk '{print $5}' | sort -u | tr '\n' ' ')"
+  DEVICES="$(ip -4 route show default |
+   awk '{print $5}' | sort -u | tr '\n' ' ')"
  ;;
  *)
   echo "ERROR=invalid_mode:$MODE"
@@ -28,9 +39,10 @@ esac
 [ -n "$DEVICES" ] || { echo ERROR=no_active_paths; exit 1; }
 
 for D in $DEVICES; do
- [ -e "/sys/class/net/$D" ] || { echo "ERROR=missing_device:$D"; exit 1; }
+ [ -e "/sys/class/net/$D" ] ||
+  { echo "ERROR=missing_device:$D"; exit 1; }
  ping -I "$D" -c 1 -W 2 1.1.1.1 >/dev/null ||
   { echo "ERROR=no_internet:$D"; exit 1; }
 done
 
-echo "RESUME_PRECHECK_OK mode=$MODE devices=$DEVICES"
+echo "RESUME_PRECHECK_OK mode=$MODE devices=$DEVICES profiles=$COUNT"
