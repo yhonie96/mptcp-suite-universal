@@ -7,3 +7,6 @@ grep -Fq 'exec "$APPLY"' "$F"
 ! sh "$F" --apply FAILOVER x x 7 y y 9 102 >/dev/null 2>&1
 ! sh "$F" --bad >/dev/null 2>&1
 echo FAILOVER_EXEC_SAFE_DEFAULT_OK
+grep -Fq 'flock -n 9' "$F"
+grep -Fq 'ip route show default' "$F"
+grep -Fq 'ip route show table' "$F"

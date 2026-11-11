@@ -3,9 +3,24 @@ set -eu
 MODE="${1:---dry-run}"
 shift || true
 APPLY=/usr/libexec/mptcp-suite/failover-apply
+LOCK=/tmp/mptcp-failover.lock
+SNAP=/tmp/mptcp-failover.routes
+
+exec 9>"$LOCK"
+flock -n 9 || { echo "ERROR=locked"; exit 2; }
+
+snapshot(){
+ {
+  echo "=== MAIN ==="
+  ip route show default
+  echo "=== TABLE ==="
+  ip route show table "${8:-102}"
+ } >"$SNAP"
+}
 
 case "$MODE" in
  --dry-run)
+  snapshot "$@"
   exec "$APPLY" "$@"
  ;;
  --apply)
