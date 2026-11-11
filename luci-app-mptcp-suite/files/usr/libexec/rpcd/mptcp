@@ -130,7 +130,7 @@ list)
 call)
  case "$2" in
  status)
-  R="$(curl -4 -sS --connect-timeout 3 --max-time 5 \
+  R="$(curl -4 -sS --connect-timeout 5 --max-time 8 \
    -o /dev/null -w '%{http_code} %{time_total}' \
    https://connectivitycheck.gstatic.com/generate_204 2>/dev/null)"
   CODE="${R%% *}"; TIME="${R#* }"
