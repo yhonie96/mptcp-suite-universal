@@ -32,6 +32,7 @@ export MOCK_ACTIONS="$D/actions"
 export MOCK_EXEC="$D/executed"
 export MPTCP_FAILOVER_APPLY=1
 export MPTCP_FAILOVER_APPLY_BIN="$D/apply"
+export MPTCP_FAILOVER_RESTORE_BIN="$PWD/mptcp-suite-routing/files/usr/libexec/mptcp-suite/failover-restore"
 export PATH="$D/bin:$PATH"
 
 MOCK_HTTP=204 sh "$E" --apply FAILOVER eth1 192.168.8.1 7 phy0-sta0 192.168.1.1 9 102
@@ -41,7 +42,14 @@ grep -Fq "route replace default via 192.168.1.1" "$MOCK_EXEC"
 : >"$MOCK_ACTIONS"
 : >"$MOCK_EXEC"
 export MOCK_HTTP=000
-! sh "$E" --apply FAILOVER eth1 192.168.8.1 7 phy0-sta0 192.168.1.1 9 102
+if OUT="$(sh "$E" --apply FAILOVER eth1 192.168.8.1 7 phy0-sta0 192.168.1.1 9 102 2>&1)"; then
+ echo "ERROR=expected_validation_failure"; exit 1
+fi
+printf '%s
+' "$OUT"
+grep -Fq "ERROR=validation_failed_snapshot_restored" <<EOF
+$OUT
+EOF
 grep -qx FAILOVER "$MOCK_ACTIONS"
 grep -qx RESTORE "$MOCK_ACTIONS"
 grep -Fq "route replace default via 192.168.8.1" "$MOCK_EXEC"

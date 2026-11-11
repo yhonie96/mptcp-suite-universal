@@ -3,6 +3,7 @@ set -eu
 MODE="${1:---dry-run}"
 shift || true
 APPLY="${MPTCP_FAILOVER_APPLY_BIN:-/usr/libexec/mptcp-suite/failover-apply}"
+RESTORE="${MPTCP_FAILOVER_RESTORE_BIN:-/usr/libexec/mptcp-suite/failover-restore}"
 LOCK=/tmp/mptcp-failover.lock
 SNAP=/tmp/mptcp-failover.routes
 
@@ -51,8 +52,13 @@ case "$MODE" in
   run_actions "$@" || exit $?
   CODE="$(curl --interface "$TARGET" -4 -sS --connect-timeout 3 --max-time 8 -o /dev/null -w "%{http_code}" https://connectivitycheck.gstatic.com/generate_204)"
   [ "$CODE" = 204 ] || {
-   run_actions "$ROLLBACK" "${2:-}" "${3:-}" "${4:-}" "${5:-}" "${6:-}" "${7:-}" "${8:-}"
-   echo "ERROR=validation_failed_rollback_done"; exit 3
+   run_actions "$ROLLBACK" "${2:-}" "${3:-}" "${4:-}" "${5:-}" "${6:-}" "${7:-}" "${8:-}" || {
+    echo "ERROR=rollback_action_failed"; exit 6
+   }
+   "$RESTORE" "$SNAP" "${8:-}" >/dev/null || {
+    echo "ERROR=snapshot_restore_failed"; exit 7
+   }
+   echo "ERROR=validation_failed_snapshot_restored"; exit 3
   }
   echo "APPLY_OK=$ACTION"
  ;;
