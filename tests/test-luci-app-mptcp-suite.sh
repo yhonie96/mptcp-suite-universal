@@ -24,3 +24,10 @@ chmod 600 "$ROOT/etc/config/mptcp_profiles"
 rm -rf "$ROOT/usr" "$ROOT/www" "$ROOT/etc/init.d" "$ROOT/etc/mptcp-suite"
 test -f "$ROOT/etc/config/mptcp_profiles"
 echo LUCI_APP_INSTALL_UPGRADE_UNINSTALL_OK
+
+POLICY="$P/files/usr/sbin/xray-policy-apply-draft"
+grep -q '^HD=false$' "$POLICY"
+grep -Fq '.domain[0]=="geosite:youtube"' "$POLICY"
+grep -q '.outboundTag=$tunnel' "$POLICY"
+grep -q '.network=="tcp" and .port=="80"' "$POLICY"
+echo FULL_TUNNEL_POLICY_TEST_OK

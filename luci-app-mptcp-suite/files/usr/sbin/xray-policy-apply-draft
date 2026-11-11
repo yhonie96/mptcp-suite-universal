@@ -9,7 +9,7 @@ mkdir -p "$O" "$B"
 test -s "$D" || { echo ERROR=no_draft; exit 1; }
 
 AD=$(jsonfilter -i "$D" -e '@.adblock')
-HD=$(jsonfilter -i "$D" -e '@.http_direct')
+HD=false
 BQ=$(jsonfilter -i "$D" -e '@.block_quic')
 TD=$(jsonfilter -i "$D" -e '@.tunnel_domains')
 DD=$(jsonfilter -i "$D" -e '@.direct_domains')
@@ -22,6 +22,8 @@ make_one(){
  .routing.rules |= map(
   if .domain==["geosite:category-ads-all"] then
    if $ad then . else empty end
+   elif .domain!=null and .domain[0]=="geosite:youtube" then
+    .outboundTag=$tunnel
   elif .network=="tcp" and .port=="80" then
    .outboundTag=(if $hd then $direct else $tunnel end)
   else . end

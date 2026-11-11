@@ -74,8 +74,8 @@ function profileCard(profile) {
   item('YouTube melalui tunnel',
    profile.youtube_tunnel,
    'YouTube, Googlevideo, YTImg'),
-  item('HTTP port 80 langsung',
-   profile.http_direct,
+  item('Full Tunnel VPS',
+   !profile.http_direct,
    'TCP port 80 tanpa tunnel VPS'),
   item('DNS diarahkan oleh Xray',
    profile.dns_redirect,
@@ -90,19 +90,15 @@ function profileCard(profile) {
 function globalPanel(data) {
  var d=data.draft_settings || {};
  var ad=d.adblock != null ? d.adblock : data.main.adblock;
- var hd=d.http_direct != null ? d.http_direct : data.main.http_direct;
  var bq=d.block_quic != null ? d.block_quic : data.quic_blocked;
  var a=E("input",{type:"checkbox"});
- var h=E("input",{type:"checkbox"});
  var q=E("input",{type:"checkbox"});
  a.checked=Boolean(ad);
- h.checked=Boolean(hd);
  q.checked=Boolean(bq);
- function save(){return saveDraft(a.checked?"1":"0","0",h.checked?"1":"0",q.checked?"1":"0","","").then(notify);}
+ function save(){return saveDraft(a.checked?"1":"0","1","0",q.checked?"1":"0","","").then(notify);}
  return E("div",{class:"tr-card",style:"margin-top:12px"},[
   E("h3",{},"Pengaturan Global"),
   E("div",{class:"tr-setting"},[E("span",{},"Blokir iklan"),a]),
-  E("div",{class:"tr-setting"},[E("span",{},"HTTP port 80 langsung"),h]),
   E("div",{class:"tr-setting"},[E("span",{},"Blokir QUIC (UDP 443)"),q]),
   E("div",{class:"tr-actions"},[
    E("button",{type:"button",class:"btn cbi-button-action",click:save},"Simpan Draft"),
@@ -202,10 +198,10 @@ return view.extend({
      'Berlaku untuk semua profil'),
     item('YouTube melalui tunnel',
      data.main.youtube_tunnel && data.limit5.youtube_tunnel,
-     'Berlaku untuk semua profil'),
-    item('HTTP port 80 langsung',
-     data.main.http_direct && data.limit5.http_direct,
-     'Berlaku untuk semua profil'),
+     'Melalui VPS saat MPTCP aktif'),
+    item('Full Tunnel VPS',
+     !data.main.http_direct && !data.limit5.http_direct,
+     'HTTP, HTTPS, dan trafik umum melalui VPS'),
     item('DNS diarahkan oleh Xray',
      data.main.dns_redirect && data.limit5.dns_redirect,
      'Diteruskan ke Stubby DoT di VPS'),
