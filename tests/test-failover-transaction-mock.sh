@@ -22,6 +22,7 @@ cat >"$D/bin/ip" <<'MOCK'
 echo "$*" >>"$MOCK_EXEC"
 case "$*" in
  "route show"*) echo "default via 192.168.8.1 dev eth1 metric 7" ;;
+ "route get 8.8.8.8 mark 0x2") echo "${MOCK_MARK_ROUTE:-8.8.8.8 via 192.168.1.1 dev phy0-sta0 table 102 mark 2}" ;;
 esac
 MOCK
 
@@ -82,6 +83,17 @@ set -e
 [ "$RC" -eq 7 ]
 echo "$OUT" | grep -Fq "ERROR=snapshot_restore_failed"
 unset MOCK_RESTORE_FAIL
+
+export MOCK_HTTP=204
+export MOCK_MARK_ROUTE="8.8.8.8 via 192.168.8.1 dev eth1 table 102 mark 2"
+set +e
+OUT="$(sh "$E" --apply FAILOVER eth1 192.168.8.1 7 phy0-sta0 192.168.1.1 9 102 2>&1)"
+RC=$?
+set -e
+[ "$RC" -eq 3 ]
+echo "$OUT" | grep -Fq "ERROR=validation_failed_snapshot_restored"
+unset MOCK_MARK_ROUTE
+echo FAILOVER_MARK_VALIDATION_OK
 
 echo FAILOVER_TRANSACTION_NEGATIVE_OK
 echo FAILOVER_TRANSACTION_MOCK_OK

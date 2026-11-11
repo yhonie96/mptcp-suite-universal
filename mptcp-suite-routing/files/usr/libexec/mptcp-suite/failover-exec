@@ -50,8 +50,11 @@ case "$MODE" in
    *) echo "ERROR=invalid_action"; exit 1 ;;
   esac
   run_actions "$@" || exit $?
-  CODE="$(curl --interface "$TARGET" -4 -sS --connect-timeout 3 --max-time 8 -o /dev/null -w "%{http_code}" https://connectivitycheck.gstatic.com/generate_204)"
-  [ "$CODE" = 204 ] || {
+  ROUTE="$(ip route get 8.8.8.8 mark 0x2 2>/dev/null)" || ROUTE=
+  ROUTE_OK=0
+  echo "$ROUTE" | grep -Fq "dev $TARGET table ${8:-102}" && ROUTE_OK=1
+  CODE="$(curl --interface "$TARGET" -4 -sS --connect-timeout 3 --max-time 8 -o /dev/null -w "%{http_code}" https://connectivitycheck.gstatic.com/generate_204)" || CODE=000
+  [ "$ROUTE_OK" = 1 ] && [ "$CODE" = 204 ] || {
    run_actions "$ROLLBACK" "${2:-}" "${3:-}" "${4:-}" "${5:-}" "${6:-}" "${7:-}" "${8:-}" || {
     echo "ERROR=rollback_action_failed"; exit 6
    }
