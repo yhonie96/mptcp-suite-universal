@@ -243,50 +243,21 @@ return view.extend({
 
   return E([],[
    E('style',{},`
-.xp-summary,.xp-wizard{
- padding:16px;border-radius:12px;margin:14px 0;
- border:1px solid rgba(127,127,127,.25)
-}
-.xp-summary{
- color:#fff;background:linear-gradient(135deg,#23395d,#315b8a)
-}
-.xp-card{
- padding:16px;margin:12px 0;border-radius:12px;
- border:1px solid rgba(127,127,127,.25)
-}
-.xp-head{display:flex;justify-content:space-between;gap:10px}
-.xp-name{font-size:20px;font-weight:700}
-.xp-meta{opacity:.7;margin-top:5px;overflow-wrap:anywhere}
-.xp-badge{
- padding:5px 9px;border-radius:16px;color:#fff;
- font-size:11px;font-weight:700;height:max-content
-}
-.xp-ok{background:#2f855a}
-.xp-warn{background:#b7791f}
-.xp-grid,.xp-form-grid{
- display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
- gap:9px;margin-top:14px
-}
-.xp-grid div{
- padding:9px;background:rgba(127,127,127,.1);
- border-radius:8px;overflow-wrap:anywhere
-}
-.xp-field span{display:block;margin-bottom:5px;opacity:.75}
-.xp-field input{width:100%;box-sizing:border-box}
-.xp-note{
- padding:10px;margin:12px 0;border-left:4px solid #4299e1;
- background:rgba(66,153,225,.08)
-}
-.xp-actions{
- display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
- gap:8px;margin-top:14px
-}
-.xp-actions .btn{width:100%;box-sizing:border-box}
-.xp-create{width:100%;margin-top:15px}
-@media(max-width:520px){
- .xp-grid,.xp-form-grid,.xp-actions{grid-template-columns:1fr}
- .xp-head{flex-direction:column}
-}
+.xp-summary{padding:21px;border-radius:19px;margin:14px 0;color:#fff;background:linear-gradient(135deg,#4338ca,#2563eb);box-shadow:0 11px 28px rgba(0,0,0,.2)}
+.xp-wizard,.xp-card{padding:18px;margin:13px 0;border-radius:17px;border:1px solid rgba(127,127,127,.25);background:linear-gradient(145deg,rgba(127,127,127,.09),rgba(127,127,127,.02));box-shadow:0 6px 18px rgba(0,0,0,.09)}
+.xp-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+.xp-name{font-size:21px;font-weight:850}.xp-meta{opacity:.68;margin-top:6px;overflow-wrap:anywhere}
+.xp-badge{padding:6px 10px;border-radius:999px;color:#fff;font-size:11px;font-weight:800;height:max-content}
+.xp-ok{background:#168750}.xp-warn{background:#b7791f}
+.xp-grid,.xp-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-top:14px}
+.xp-grid div{padding:11px;background:rgba(127,127,127,.09);border-radius:10px;overflow-wrap:anywhere}
+.xp-field span{display:block;margin-bottom:6px;font-weight:750;opacity:.78}
+.xp-field input{width:100%;height:44px;padding:0 12px;box-sizing:border-box;border-radius:9px}
+.xp-note{padding:13px;margin:12px 0;border-left:4px solid #3b82f6;background:rgba(59,130,246,.09);border-radius:9px;line-height:1.5}
+.xp-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-top:14px}
+.xp-actions .btn,.xp-create{width:100%;box-sizing:border-box;border-radius:11px!important;padding:10px!important}
+.xp-create{margin-top:15px}
+@media(max-width:520px){.xp-grid,.xp-form-grid,.xp-actions{grid-template-columns:1fr}.xp-head{flex-direction:column}}
 `),
 
    E('h2',{},'Profil Xray'),

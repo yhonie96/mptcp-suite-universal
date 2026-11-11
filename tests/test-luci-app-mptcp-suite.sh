@@ -63,3 +63,10 @@ grep -Fq 'BELUM TERDETEKSI' "$SOURCE_UI"
 grep -Fq 'Tidak ada draft perubahan.' "$SOURCE_UI"
 grep -Fq 'Rollback otomatis' "$SOURCE_UI"
 echo MODERN_SOURCE_EDITOR_TEST_OK
+
+XP="$P/files/www/luci-static/resources/view/status/xray-profiles.js"
+grep -Fq 'linear-gradient(135deg,#4338ca,#2563eb)' "$XP"
+grep -Fq 'xp-wizard,.xp-card' "$XP"
+grep -Fq 'height:44px' "$XP"
+grep -Fq 'Hapus Profil (Dilindungi)' "$XP"
+echo MODERN_XRAY_PROFILES_TEST_OK
