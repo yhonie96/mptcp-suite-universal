@@ -1,0 +1,12 @@
+#!/bin/sh
+set -eu
+HOST=downloads.openwrt.org
+IP=151.101.66.132
+SAVE=/tmp/hosts.apk-update.$$
+trap 'cp -p "$SAVE" /etc/hosts; rm -f "$SAVE"' EXIT INT TERM
+cp -p /etc/hosts "$SAVE"
+sed -i "/$HOST/d" /etc/hosts
+printf "%s %s
+" "$IP" "$HOST" >>/etc/hosts
+echo "APK_IPV4=$IP"
+apk update
