@@ -1,0 +1,14 @@
+#!/bin/sh
+set -eu
+
+uci -q show mptcp_profiles |
+ awk -F'[.=]' '$0 ~ /^mptcp_profiles\.[^.]+=profile$/ {print $2}' |
+ while IFS= read -r ID; do
+  [ "$(uci -q get mptcp_profiles.$ID.enabled)" = 1 ] || continue
+  CFG="$(uci -q get mptcp_profiles.$ID.config)"
+  SVC="$(uci -q get mptcp_profiles.$ID.service)"
+  VT="$(uci -q get mptcp_profiles.$ID.outbound_tag)"
+  FT="$(uci -q get mptcp_profiles.$ID.freedom_tag)"
+  [ -n "$CFG" ] && [ -n "$SVC" ] && [ -n "$VT" ] && [ -n "$FT" ] || exit 2
+  printf '%s\t%s\t%s\t%s\t%s\n' "$ID" "$CFG" "$SVC" "$VT" "$FT"
+ done
