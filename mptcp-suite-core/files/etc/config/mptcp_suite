@@ -26,7 +26,6 @@ list src_mac '02:00:00:00:00:01'
 
 config failover 'failover'
 option enabled '0'
-option primary_wan 'WAN1'
 option secondary_wan 'wwan'
 option primary_table '102'
 option failure_threshold '3'
