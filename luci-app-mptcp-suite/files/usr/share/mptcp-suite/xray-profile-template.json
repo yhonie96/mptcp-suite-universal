@@ -1,0 +1,156 @@
+{
+  "log": {
+    "access": "none",
+    "loglevel": "error"
+  },
+  "inbounds": [
+    {
+      "tag": "tproxy-profile",
+      "listen": "127.0.0.1",
+      "port": 10000,
+      "protocol": "tunnel",
+      "settings": {
+        "network": "tcp,udp",
+        "followRedirect": true
+      },
+      "sniffing": {
+        "enabled": true,
+        "destOverride": [
+          "http",
+          "tls",
+          "quic"
+        ],
+        "routeOnly": true
+      },
+      "streamSettings": {
+        "sockopt": {
+          "tproxy": "tproxy"
+        }
+      }
+    }
+  ],
+  "outbounds": [
+    {
+      "tag": "block",
+      "protocol": "blackhole",
+      "settings": {}
+    },
+    {
+      "tag": "dns-outbound",
+      "protocol": "dns"
+    },
+    {
+      "tag": "freedom-profile",
+      "protocol": "freedom",
+      "settings": {
+        "redirect": "SERVER_PLACEHOLDER:1"
+      },
+      "streamSettings": {
+        "sockopt": {
+          "mark": 2,
+          "tcpMptcp": true
+        }
+      }
+    },
+    {
+      "tag": "vless-profile",
+      "protocol": "vless",
+      "settings": {
+        "address": "127.0.0.1",
+        "port": 1,
+        "id": "UUID_PLACEHOLDER",
+        "encryption": "none",
+        "flow": "xtls-rprx-vision"
+      },
+      "streamSettings": {
+        "sockopt": {
+          "dialerProxy": "freedom-profile"
+        },
+        "method": "raw",
+        "security": "reality",
+        "realitySettings": {
+          "serverName": "SNI_PLACEHOLDER",
+          "fingerprint": "chrome",
+          "password": "REALITY_KEY_PLACEHOLDER",
+          "shortId": "SHORT_ID_PLACEHOLDER",
+          "spiderX": "/"
+        }
+      },
+      "mux": {
+        "enabled": true,
+        "concurrency": -1,
+        "xudpConcurrency": 1024,
+        "xudpProxyUDP443": "reject"
+      }
+    },
+    {
+      "tag": "direct-profile",
+      "protocol": "freedom",
+      "settings": {},
+      "streamSettings": {
+        "sockopt": {
+          "mark": 2
+        }
+      }
+    }
+  ],
+  "dns": {
+    "tag": "dns-inbound",
+    "servers": [
+      "tcp://1.1.1.1"
+    ]
+  },
+  "routing": {
+    "domainStrategy": "IPIfNonMatch",
+    "rules": [
+      {
+        "type": "field",
+        "network": "tcp",
+        "port": "80",
+        "outboundTag": "vless-profile"
+      },
+      {
+        "type": "field",
+        "domain": [
+          "domain:cloudflare.com"
+        ],
+        "outboundTag": "direct-profile"
+      },
+      {
+        "type": "field",
+        "domain": [
+          "geosite:youtube",
+          "domain:youtube.com",
+          "domain:youtu.be",
+          "domain:googlevideo.com",
+          "domain:ytimg.com",
+          "domain:youtubei.googleapis.com"
+        ],
+        "outboundTag": "vless-profile"
+      },
+      {
+        "type": "field",
+        "domain": [
+          "geosite:category-ads-all"
+        ],
+        "outboundTag": "block"
+      },
+      {
+        "inboundTag": [
+          "dns-inbound"
+        ],
+        "outboundTag": "direct-profile"
+      },
+      {
+        "network": "tcp,udp",
+        "port": "53",
+        "outboundTag": "dns-outbound"
+      },
+      {
+        "type": "field",
+        "network": "tcp,udp",
+        "outboundTag": "vless-profile"
+      }
+    ]
+  }
+}

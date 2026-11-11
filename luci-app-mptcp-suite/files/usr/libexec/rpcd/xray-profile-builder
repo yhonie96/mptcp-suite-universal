@@ -2,7 +2,7 @@
 . /usr/share/libubox/jshn.sh
 
 DRAFT=/etc/mptcp-suite/xray-account-draft.json
-TEMPLATE=/etc/xray-5mbps/config.json
+TEMPLATE=/usr/share/mptcp-suite/xray-profile-template.json
 
 reply() {
  json_init
@@ -154,8 +154,8 @@ case "$1" in
      --argjson local "$local_port" '
       (.inbounds[0].port)=$local |
       (.inbounds[0].tag)="tproxy-profile" |
-      (.outbounds[]|select(.tag=="freedom-5mbps")|.tag)=$ft |
-      (.outbounds[]|select(.tag=="vless-5mbps")|.tag)=$vt |
+      (.outbounds[]|select(.tag=="freedom-profile")|.tag)=$ft |
+      (.outbounds[]|select(.tag=="vless-profile")|.tag)=$vt |
       (.outbounds[]|select(.tag==$ft)|.settings.redirect)=$redirect |
       (.outbounds[]|select(.tag==$vt)|.settings.id)=$uuid |
       (.outbounds[]|select(.tag==$vt)|
