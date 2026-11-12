@@ -25,4 +25,6 @@ grep -q 'mptcp_suite.routing.policy_mark' "$P/files/usr/sbin/traffic-policy-gene
 grep -q 'hook prerouting priority mangle - 2' "$P/files/usr/sbin/traffic-policy-generate"
 grep -q 'traffic_manual_' "$P/files/usr/sbin/traffic-policy-apply"
 
+grep -Fq "traffic_policy.main.mark_wwan" "$P/files/usr/sbin/traffic-policy-generate"
+grep -Fq "nft list table ip traffic_policy" "$P/files/usr/sbin/traffic-policy-apply"
 echo TRAFFIC_PACKAGE_10_CHECKS_OK

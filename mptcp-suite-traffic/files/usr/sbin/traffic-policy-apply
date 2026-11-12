@@ -37,7 +37,7 @@ sed 's/traffic_policy_test/traffic_policy/g' \
  /tmp/traffic-policy-test.nft >/tmp/traffic-policy-runtime.nft
 
 {
- echo 'delete table ip traffic_policy'
+ nft list table ip traffic_policy >/dev/null 2>&1 && echo 'delete table ip traffic_policy'
  cat /tmp/traffic-policy-runtime.nft
 } >/tmp/traffic-policy-transaction.nft
 

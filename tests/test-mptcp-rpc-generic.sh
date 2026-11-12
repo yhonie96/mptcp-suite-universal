@@ -15,4 +15,6 @@ grep -Fq '[ "$COUNT" -gt 0 ] || XRAY=0' "$F"
 
 ! grep -Eq 'xray-5mbps|/etc/xray/config|MAIN=|LIMIT=|TMAIN=|TLIMIT=' "$F"
 
+grep -Fq "mptcp-pause-rollback.log" "$F"
+grep -Fq "rollback tunnel belum sehat" "$F"
 echo MPTCP_RPC_GENERIC_OK

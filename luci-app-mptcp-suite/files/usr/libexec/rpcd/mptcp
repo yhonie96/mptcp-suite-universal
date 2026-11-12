@@ -192,8 +192,11 @@ call)
    done
    nft -f /usr/share/bsbf/bsbf_bonding.nft >/dev/null 2>&1 || true
    "$PROFILE_RESTART" >/dev/null 2>&1 || true
-   /etc/init.d/bsbf-mptcp restart >/dev/null 2>&1 || true
-   reply 0 "Direct gagal; mode tunnel dipulihkan"
+   if timeout 40 /usr/sbin/mptcp-reconnect >/tmp/mptcp-pause-rollback.log 2>&1; then
+    reply 0 "Direct gagal; mode tunnel dipulihkan"
+   else
+    reply 0 "Direct gagal; rollback tunnel belum sehat"
+   fi
   fi
  ;;
  resume_check)
