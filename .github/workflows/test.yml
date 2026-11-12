@@ -28,7 +28,7 @@ jobs:
             test -x "$F"
           done
 
-          test "$(awk 'index($0,"\t")==1{n++}END{print n+0}' "$P/Makefile")" -eq 4
+          test "$(awk 'index($0,"\t")==1{n++}END{print n+0}' "$P/Makefile")" -eq 6
 
       - name: Reject router-specific hardcodes
         shell: bash
