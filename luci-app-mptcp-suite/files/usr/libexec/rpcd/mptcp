@@ -7,6 +7,7 @@ MANIFEST=$DIR/tunnel-profiles.tsv
 PROFILE_LIST=/usr/sbin/mptcp-profile-list
 PROFILE_BACKUP=/usr/sbin/mptcp-profile-backup
 PROFILE_RESTART=/usr/sbin/mptcp-profile-restart
+CHECK_URL=https://connectivitycheck.gstatic.com/generate_204
 
 reply() {
  json_init
@@ -21,6 +22,18 @@ enable_service() {
 
 disable_service() {
  /etc/init.d/"$1" disable >/dev/null 2>&1 || true
+}
+
+check_http(){
+ W=0
+ while test $W -lt 6; do
+  C=$(curl -4 -sS --max-time 3 -o /dev/null -w "%{http_code}" "$CHECK_URL" 2>/dev/null || true)
+  test "$C" = 204 && return 0
+  W=$((W+1))
+  sleep 2
+ done
+ echo ERROR=direct_http_not_ready
+ return 1
 }
 
 cleanup_staged() {
@@ -92,8 +105,7 @@ direct_mode() {
 
  if ! nft -f /usr/share/bsbf/bsbf_bonding.nft ||
     ! "$PROFILE_RESTART" >/tmp/mptcp-profile-restart.log 2>&1 ||
-    ! curl -4 -sS --max-time 10 -o /dev/null \
-      https://connectivitycheck.gstatic.com/generate_204; then
+    ! check_http; then
   restore_profiles >/dev/null 2>&1 || true
   "$PROFILE_RESTART" >/dev/null 2>&1 || true
   rm -f "$PAUSED"

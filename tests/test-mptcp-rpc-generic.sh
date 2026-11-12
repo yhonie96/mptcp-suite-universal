@@ -17,4 +17,7 @@ grep -Fq '[ "$COUNT" -gt 0 ] || XRAY=0' "$F"
 
 grep -Fq "mptcp-pause-rollback.log" "$F"
 grep -Fq "rollback tunnel belum sehat" "$F"
+grep -Fq "check_http()" "$F"
+grep -Fq "direct_http_not_ready" "$F"
+grep -Fq "! check_http; then" "$F"
 echo MPTCP_RPC_GENERIC_OK
