@@ -1,0 +1,50 @@
+#!/bin/sh
+set -eu
+MODE="${1:---dry-run}"
+PLAN="${MPTCP_ROUTING_PLAN_BIN:-/usr/libexec/mptcp-suite/routing-plan}"
+PAUSED_FILE="${MPTCP_PAUSED_FILE:-/etc/mptcp-suite/paused}"
+CFG="${MPTCP_ROUTING_CONFIG:-/etc/config}"
+get(){ uci -c "$CFG" -q get "mptcp_suite.routing.$1"; }
+LOCK=/tmp/mptcp-routing.lock
+SNAP=/tmp/mptcp-routing.snapshot
+exec 9>"$LOCK"
+flock -n 9 || { echo ERROR=locked; exit 2; }
+validate_config(){
+ [ -n "$PT" ] && [ -n "$ST" ] && [ -n "$TT" ] || { echo ERROR=incomplete_configuration; return 1; }
+ case "$PT:$ST:$TT" in *[!0-9:]*) echo ERROR=incomplete_configuration; return 1;; esac
+ [ "$PT" != "$ST" ] && [ "$PT" != "$TT" ] && [ "$ST" != "$TT" ] || { echo ERROR=duplicate_table_id; return 1; }
+ [ "$PT" -ge 1 ] && [ "$PT" -le 4294967295 ] && [ "$ST" -ge 1 ] && [ "$ST" -le 4294967295 ] && [ "$TT" -ge 1 ] && [ "$TT" -le 4294967295 ] || { echo ERROR=table_id_range; return 1; }
+ [ -n "$BP" ] && [ -n "$PP" ] && [ -n "$TP" ] || { echo ERROR=incomplete_priority; return 1; }
+ case "$BP:$PP:$TP" in *[!0-9:]*) echo ERROR=incomplete_priority; return 1;; esac
+ [ "$BP" != "$PP" ] && [ "$BP" != "$TP" ] && [ "$PP" != "$TP" ] || { echo ERROR=duplicate_priorities; return 1; }
+ [ "$BP" -ge 1 ] && [ "$BP" -le 32765 ] && [ "$PP" -ge 1 ] && [ "$PP" -le 32765 ] && [ "$TP" -ge 1 ] && [ "$TP" -le 32765 ] || { echo ERROR=priority_range; return 1; }
+}
+snapshot(){
+ {
+  ip route show table "$PT"
+  ip route show table "$ST"
+  ip route show table "$TT"
+  ip rule show | grep -E "^($BP|$PP|$TP):" || true
+ } >"$SNAP"
+}
+rollback(){ echo ERROR=apply_not_implemented; return 1; }
+case "$MODE" in
+ --dry-run) exec "$PLAN" ;;
+ --apply)
+  [ ! -e "$PAUSED_FILE" ] || { echo ERROR=paused; exit 3; }
+  [ "${MPTCP_ROUTING_APPLY:-0}" = 1 ] || { echo ERROR=apply_locked; exit 4; }
+  ALLOCATED="$(get allocated)"
+  PT="$(get primary_table)"
+  ST="$(get secondary_table)"
+  TT="$(get tproxy_table)"
+  BP="$(get primary_priority)"
+  PP="$(get secondary_priority)"
+  TP="$(get tproxy_priority)"
+  [ "$ALLOCATED" = 1 ] || { echo ERROR=not_allocated; exit 6; }
+  validate_config || exit 7
+  snapshot
+  rollback
+  exit 5
+ ;;
+ *) echo ERROR=invalid_mode; exit 1;;
+esac

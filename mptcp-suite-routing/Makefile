@@ -11,7 +11,7 @@ define Package/mptcp-suite-routing
   SECTION:=net
   CATEGORY:=Network
   TITLE:=Universal MPTCP Suite routing planner
-  DEPENDS:=+mptcp-suite-core +ip-full +jsonfilter +curl
+  DEPENDS:=+mptcp-suite-core +ip-full +jsonfilter +curl +flock
 endef
 
 define Build/Compile
