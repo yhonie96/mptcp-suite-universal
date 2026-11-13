@@ -1,1 +1,25 @@
-IyEvYmluL3NoCnNldCAtZXUKRj1sdWNpLWFwcC1tcHRjcC1zdWl0ZS9maWxlcy91c3IvbGliZXhlYy9ycGNkL21wdGNwCgpzaCAtbiAiJEYiCiIkRiIgbGlzdCB8IGpzb25maWx0ZXIgLWUgJ0Auc3RhdHVzJyA+L2Rldi9udWxsCgpncmVwIC1GcSAnbXB0Y3AtcHJvZmlsZS1iYWNrdXAnICIkRiIKZ3JlcCAtRnEgJ21wdGNwLXByb2ZpbGUtcmVzdGFydCcgIiRGIgpncmVwIC1GcSAndHVubmVsLXByb2ZpbGVzLnRzdicgIiRGIgpncmVwIC1GcSAnY2xlYW51cF9zdGFnZWQoKScgIiRGIgpncmVwIC1GcSAncmVzdG9yZV9wcm9maWxlcygpJyAiJEYiCmdyZXAgLUZxICdkaXJlY3RfbW9kZSByZXVzZScgIiRGIgpncmVwIC1GcSAnWyAiJENPVU5UIiAtZ3QgMCBdIHx8IFhSQVk9MCcgIiRGIgoKISBncmVwIC1FcSAneHJheS01bWJwc3wvZXRjL3hyYXkvY29uZmlnfE1BSU49fExJTUlUPXxUTUFJTj18VExJTUlUPScgIiRGIgoKZ3JlcCAtRnEgIm1wdGNwLXBhdXNlLXJvbGxiYWNrLmxvZyIgIiRGIgpncmVwIC1GcSAicm9sbGJhY2sgdHVubmVsIGJlbHVtIHNlaGF0IiAiJEYiCmdyZXAgLUZxICJjaGVja19odHRwKCkiICIkRiIKZ3JlcCAtRnEgImRpcmVjdF9odHRwX25vdF9yZWFkeSIgIiRGIgpncmVwIC1GcSAiY2hlY2tfaHR0cCA+L2Rldi9udWxsIiAiJEYiCmdyZXAgLUZxICJqZWRhIHRldGFwIGRpcGVydGFoYW5rYW4iICIkRiIKZ3JlcCAtRnEgIk1QVENQX1JFU1VNRT0xIC91c3Ivc2Jpbi9tcHRjcC1yZWNvbm5lY3QiICIkRiIKZWNobyBNUFRDUF9SUENfR0VORVJJQ19PSwo=
+#!/bin/sh
+set -eu
+F=luci-app-mptcp-suite/files/usr/libexec/rpcd/mptcp
+
+sh -n "$F"
+"$F" list | jsonfilter -e '@.status' >/dev/null
+
+grep -Fq 'mptcp-profile-backup' "$F"
+grep -Fq 'mptcp-profile-restart' "$F"
+grep -Fq 'tunnel-profiles.tsv' "$F"
+grep -Fq 'cleanup_staged()' "$F"
+grep -Fq 'restore_profiles()' "$F"
+grep -Fq 'direct_mode reuse' "$F"
+grep -Fq '[ "$COUNT" -gt 0 ] || XRAY=0' "$F"
+
+! grep -Eq 'xray-5mbps|/etc/xray/config|MAIN=|LIMIT=|TMAIN=|TLIMIT=' "$F"
+
+grep -Fq "mptcp-pause-rollback.log" "$F"
+grep -Fq "rollback tunnel belum sehat" "$F"
+grep -Fq "check_http()" "$F"
+grep -Fq "direct_http_not_ready" "$F"
+grep -Fq "check_http >/dev/null" "$F"
+grep -Fq "jeda tetap dipertahankan" "$F"
+grep -Fq "MPTCP_RESUME=1 /usr/sbin/mptcp-reconnect" "$F"
+echo MPTCP_RPC_GENERIC_OK

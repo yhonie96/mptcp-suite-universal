@@ -1,1 +1,42 @@
-IyEvYmluL3NoCiMgSmFuZ2FuIHBlcm5haCBtZW1iYW5ndW4gdWxhbmcgdHVubmVsIHNhYXQgcGVuZ2d1bmEgbWVuamVkYSBNUFRDUC4KIyBQZW5nZWN1YWxpYW46IHJlc3VtZSByZXNtaSBkYXJpIHJwY2QgKE1QVENQX1JFU1VNRT0xKSB5YW5nIG1lbWFuZwojIGJlcnR1Z2FzIG1lbmdha2hpcmkgamVkYTsgZmlsZSBwZW5hbmRhIGplZGEgYmFydSBkaWhhcHVzIHJwY2QKIyBzZXRlbGFoIHR1bm5lbCB0ZXJidWt0aSBzZWhhdC4KaWYgWyAtZSAvZXRjL21wdGNwLXN1aXRlL3BhdXNlZCBdICYmIFsgLXogIiR7TVBUQ1BfUkVTVU1FOi19IiBdOyB0aGVuCiBsb2dnZXIgLXQgbXB0Y3AtcmVjb25uZWN0ICJzdGF0dXMgamVkYTsgcmVjb25uZWN0IGRpbGV3YXRpIgogZXhpdCAwCmZpCkxPQ0s9L3RtcC9tcHRjcC1yZWNvbm5lY3QubG9jawppZiAhIG1rZGlyICIkTE9DSyIgMj4vZGV2L251bGw7IHRoZW4gZXhpdCAwOyBmaQp0cmFwICdybWRpciAiJExPQ0siJyBFWElUIElOVCBURVJNClRBRz1tcHRjcC1yZWNvbm5lY3QKbG9nZ2VyIC10ICIkVEFHIiAiTWVtdWxhaSBrb25la3NpIHVsYW5nIGFtYW4iCgpmb3IgREVWIGluICQoaXAgLTQgcm91dGUgc2hvdyBkZWZhdWx0IHwgYXdrICJ7cHJpbnQgJDV9IiB8IHNvcnQgLXUpOyBkbwogSUZBQ0U9IiQodWJ1cyBsaXN0ICJuZXR3b3JrLmludGVyZmFjZS4qIiB8IHNlZCAicy9uZXR3b3JrLmludGVyZmFjZS4vLyIgfCB3aGlsZSByZWFkIEk7IGRvCiAgWyAiJChpZnN0YXR1cyAiJEkiIDI+L2Rldi9udWxsIHwganNvbmZpbHRlciAtZSAiQC5sM19kZXZpY2UiKSIgPSAiJERFViIgXSAmJiB7IGVjaG8gIiRJIjsgYnJlYWs7IH0KIGRvbmUpIgogWyAtbiAiJElGQUNFIiBdICYmIHVidXMgY2FsbCAibmV0d29yay5pbnRlcmZhY2UuJElGQUNFIiB1cCA+L2Rldi9udWxsIDI+JjEKZG9uZQoKL2V0Yy9pbml0LmQvYnNiZi1tcHRjcCBzdG9wCnJtIC1mIC9ydW4vYnNiZi1tcHRjcC1zdXBwb3J0ZWQgL3J1bi9ic2JmLW1wdGNwLW5vdC1zdXBwb3J0ZWQgL3J1bi9ic2JmLW1wdGNwLW5vLWNvbm5lY3Rpdml0eQp0b3VjaCAvcnVuL2JzYmYtbXB0Y3Atc3VwcG9ydGVkIC9ydW4vYnNiZi1tcHRjcC1ub3Qtc3VwcG9ydGVkIC9ydW4vYnNiZi1tcHRjcC1uby1jb25uZWN0aXZpdHkKL2V0Yy9pbml0LmQvYnNiZi1tcHRjcCBzdGFydAoKaXAgcnVsZSBzaG93IHwgZ3JlcCAtcSAnZndtYXJrIDB4MSBsb29rdXAgMTAwMDAnIHx8CiBpcCBydWxlIGFkZCBwcmVmIDEwMCBmd21hcmsgMHgxIGxvb2t1cCAxMDAwMAppcCByb3V0ZSByZXBsYWNlIGxvY2FsIDAuMC4wLjAvMCBkZXYgbG8gdGFibGUgMTAwMDAKCnNsZWVwIDEyCi91c3Ivc2Jpbi9tcHRjcC1wcm9maWxlLXJlc3RhcnQgfHwgZXhpdCAxCnNsZWVwIDMKCk49IiQoaXAgbXB0Y3AgZW5kcG9pbnQgc2hvdyB8IGdyZXAgLWMgLikiCmlmIFsgIiROIiAtZ2UgMSBdOyB0aGVuCiBsb2dnZXIgLXQgIiRUQUciICJCZXJoYXNpbCwgZW5kcG9pbnQ9JE4iCiBleGl0IDAKZmkKbG9nZ2VyIC10ICIkVEFHIiAiR2FnYWwsIGVuZHBvaW50PSROIgpleGl0IDEK
+#!/bin/sh
+# Jangan pernah membangun ulang tunnel saat pengguna menjeda MPTCP.
+# Pengecualian: resume resmi dari rpcd (MPTCP_RESUME=1) yang memang
+# bertugas mengakhiri jeda; file penanda jeda baru dihapus rpcd
+# setelah tunnel terbukti sehat.
+if [ -e /etc/mptcp-suite/paused ] && [ -z "${MPTCP_RESUME:-}" ]; then
+ logger -t mptcp-reconnect "status jeda; reconnect dilewati"
+ exit 0
+fi
+LOCK=/tmp/mptcp-reconnect.lock
+if ! mkdir "$LOCK" 2>/dev/null; then exit 0; fi
+trap 'rmdir "$LOCK"' EXIT INT TERM
+TAG=mptcp-reconnect
+logger -t "$TAG" "Memulai koneksi ulang aman"
+
+for DEV in $(ip -4 route show default | awk "{print $5}" | sort -u); do
+ IFACE="$(ubus list "network.interface.*" | sed "s/network.interface.//" | while read I; do
+  [ "$(ifstatus "$I" 2>/dev/null | jsonfilter -e "@.l3_device")" = "$DEV" ] && { echo "$I"; break; }
+ done)"
+ [ -n "$IFACE" ] && ubus call "network.interface.$IFACE" up >/dev/null 2>&1
+done
+
+/etc/init.d/bsbf-mptcp stop
+rm -f /run/bsbf-mptcp-supported /run/bsbf-mptcp-not-supported /run/bsbf-mptcp-no-connectivity
+touch /run/bsbf-mptcp-supported /run/bsbf-mptcp-not-supported /run/bsbf-mptcp-no-connectivity
+/etc/init.d/bsbf-mptcp start
+
+ip rule show | grep -q 'fwmark 0x1 lookup 10000' ||
+ ip rule add pref 100 fwmark 0x1 lookup 10000
+ip route replace local 0.0.0.0/0 dev lo table 10000
+
+sleep 12
+/usr/sbin/mptcp-profile-restart || exit 1
+sleep 3
+
+N="$(ip mptcp endpoint show | grep -c .)"
+if [ "$N" -ge 1 ]; then
+ logger -t "$TAG" "Berhasil, endpoint=$N"
+ exit 0
+fi
+logger -t "$TAG" "Gagal, endpoint=$N"
+exit 1

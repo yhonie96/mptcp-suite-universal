@@ -1,1 +1,35 @@
-J3VzZSBzdHJpY3QnOwppbXBvcnQgKiBhcyBmcyBmcm9tICdmcyc7CgpsZXQgaW5wdXQ9QVJHVlswXSwgb3V0cHV0PUFSR1ZbMV07CmxldCB0dW5uZWw9QVJHVlsyXSwgZGlyZWN0PUFSR1ZbM107CmlmKCFpbnB1dCB8fCAhb3V0cHV0IHx8ICF0dW5uZWwgfHwgIWRpcmVjdCkKIGV4aXQoMik7CgpsZXQgaj1qc29uKGZzLnJlYWRmaWxlKGlucHV0KSksIGNsZWFuPVtdOwppZighaiB8fCAhai5yb3V0aW5nIHx8ICFqLnJvdXRpbmcucnVsZXMpCiBleGl0KDMpOwoKLy8gQXJndW1lbiBrZXRpZ2EgYWRhbGFoIGZyZWVkb21fdGFnOiBkaWFsZXIgdHVubmVsIHlhbmcgbWVtYmF3YQovLyByZWRpcmVjdCBwYWtzYSBrZSBWUFMuIE1lbWFrYWlueWEgc2ViYWdhaSB0dWp1YW4gRGlyZWN0IGFrYW4KLy8gbWVtYWtzYSBzZWx1cnVoIHRyYWZpayBrZSBwb3J0IFZQUyBkYW4gbWVtYXRpa2FuIGludGVybmV0IG1vZGUKLy8gRGlyZWN0LiBQaWxpaCBvdXRib3VuZCBmcmVlZG9tIHlhbmcgYmVuYXItYmVuYXIgcG9sb3MgKHRhbnBhCi8vIHJlZGlyZWN0KSBkYXJpIGNvbmZpZyBzZW5kaXJpIGJpbGEgYWRhOyBmYWxsYmFjayBrZSBhcmd1bWVuLgppZihqLm91dGJvdW5kcyl7CiBmb3IobGV0IG8gaW4gai5vdXRib3VuZHMpewogIGlmKG8ucHJvdG9jb2w9PSdmcmVlZG9tJyAmJiAhKG8uc2V0dGluZ3MgJiYgby5zZXR0aW5ncy5yZWRpcmVjdCkpewogICBkaXJlY3Q9by50YWc7CiAgIGJyZWFrOwogIH0KIH0KfQoKZm9yKGxldCByIGluIGoucm91dGluZy5ydWxlcyl7CiBpZihyLm5ldHdvcms9PSd0Y3AsdWRwJyAmJiAhci5wb3J0ICYmICFyLmRvbWFpbiAmJgogICAgIXIuaXAgJiYgIXIuc291cmNlICYmICFyLmluYm91bmRUYWcpIGNvbnRpbnVlOwogaWYoci5vdXRib3VuZFRhZz09dHVubmVsKSByLm91dGJvdW5kVGFnPWRpcmVjdDsKIHB1c2goY2xlYW4scik7Cn0KcHVzaChjbGVhbix7dHlwZTonZmllbGQnLG5ldHdvcms6J3RjcCx1ZHAnLG91dGJvdW5kVGFnOmRpcmVjdH0pOwpqLnJvdXRpbmcucnVsZXM9Y2xlYW47CmZzLndyaXRlZmlsZShvdXRwdXQsc3ByaW50ZignJS4ySlxuJyxqKSk7Cg==
+'use strict';
+import * as fs from 'fs';
+
+let input=ARGV[0], output=ARGV[1];
+let tunnel=ARGV[2], direct=ARGV[3];
+if(!input || !output || !tunnel || !direct)
+ exit(2);
+
+let j=json(fs.readfile(input)), clean=[];
+if(!j || !j.routing || !j.routing.rules)
+ exit(3);
+
+// Argumen ketiga adalah freedom_tag: dialer tunnel yang membawa
+// redirect paksa ke VPS. Memakainya sebagai tujuan Direct akan
+// memaksa seluruh trafik ke port VPS dan mematikan internet mode
+// Direct. Pilih outbound freedom yang benar-benar polos (tanpa
+// redirect) dari config sendiri bila ada; fallback ke argumen.
+if(j.outbounds){
+ for(let o in j.outbounds){
+  if(o.protocol=='freedom' && !(o.settings && o.settings.redirect)){
+   direct=o.tag;
+   break;
+  }
+ }
+}
+
+for(let r in j.routing.rules){
+ if(r.network=='tcp,udp' && !r.port && !r.domain &&
+    !r.ip && !r.source && !r.inboundTag) continue;
+ if(r.outboundTag==tunnel) r.outboundTag=direct;
+ push(clean,r);
+}
+push(clean,{type:'field',network:'tcp,udp',outboundTag:direct});
+j.routing.rules=clean;
+fs.writefile(output,sprintf('%.2J\n',j));
