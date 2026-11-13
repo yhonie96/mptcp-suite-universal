@@ -43,4 +43,7 @@ grep -Fq 'ip route flush table "$TT"' "$F"
 grep -Fq "TABLE_PRIMARY" "$F"
 grep -Fq "TABLE_SECONDARY" "$F"
 grep -Fq "TABLE_TPROXY" "$F"
+grep -Fq "MPTCP_ROUTING_RESTORE_BIN" "$F"
+grep -Fq '"$RESTORE" "$SNAP" "$PT" "$ST" "$TT" "$BP" "$PP" "$TP"' "$F"
+grep -Fq "ERROR=apply_not_implemented" "$F"
 echo ROUTING_EXEC_STRUCTURE_OK

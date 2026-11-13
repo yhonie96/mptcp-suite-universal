@@ -2,6 +2,7 @@
 set -eu
 MODE="${1:---dry-run}"
 PLAN="${MPTCP_ROUTING_PLAN_BIN:-/usr/libexec/mptcp-suite/routing-plan}"
+RESTORE="${MPTCP_ROUTING_RESTORE_BIN:-/usr/libexec/mptcp-suite/routing-restore}"
 PAUSED_FILE="${MPTCP_PAUSED_FILE:-/etc/mptcp-suite/paused}"
 CFG="${MPTCP_ROUTING_CONFIG:-/etc/config}"
 get(){ uci -c "$CFG" -q get "mptcp_suite.routing.$1"; }
@@ -40,7 +41,7 @@ restore_snapshot(){
  ip route flush table "$ST" 2>/dev/null || true
  ip route flush table "$TT" 2>/dev/null || true
 }
-rollback(){ restore_snapshot; }
+rollback(){ restore_snapshot && "$RESTORE" "$SNAP" "$PT" "$ST" "$TT" "$BP" "$PP" "$TP"; }
 case "$MODE" in
  --dry-run) exec "$PLAN" ;;
  --apply)
