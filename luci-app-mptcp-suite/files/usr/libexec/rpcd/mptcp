@@ -36,6 +36,11 @@ check_http(){
  return 1
 }
 
+disable_diversion() {
+ /etc/init.d/bsbf-bonding-nft disable >/dev/null 2>&1 || true
+ nft delete table ip bsbf_bonding >/dev/null 2>&1 || true
+}
+
 cleanup_staged() {
  [ -s "$MANIFEST" ] || return 0
  while IFS="$(printf '\t')" read -r id cfg svc vt ft snap; do
@@ -103,11 +108,9 @@ direct_mode() {
  /etc/init.d/bsbf-mptcp stop >/dev/null 2>&1 || true
  ip mptcp endpoint flush >/dev/null 2>&1 || true
 
- if ! nft -f /usr/share/bsbf/bsbf_bonding.nft ||
-    ! "$PROFILE_RESTART" >/tmp/mptcp-profile-restart.log 2>&1; then
-  restore_profiles >/dev/null 2>&1 || true
-  "$PROFILE_RESTART" >/dev/null 2>&1 || true
-  rm -f "$PAUSED"
+ disable_diversion
+ if ! "$PROFILE_RESTART" >/tmp/mptcp-profile-restart.log 2>&1; then
+  touch "$PAUSED"
   return 1
  fi
 
@@ -121,25 +124,9 @@ direct_mode() {
 }
 
 tunnel_mode() {
- restore_profiles || return 1
-
- for svc in bsbf-bonding-nft bsbf-endpoint-repair bsbf-mptcp \
-  mptcp-autoreconnect; do
-  enable_service "$svc"
- done
-
- nft -f /usr/share/bsbf/bsbf_bonding.nft || return 1
- /etc/init.d/bsbf-mptcp restart >/dev/null 2>&1 || true
- "$PROFILE_RESTART" >/tmp/mptcp-profile-restart.log 2>&1 || return 1
- timeout 30 env MPTCP_RESUME=1 /usr/sbin/mptcp-reconnect \
-  >/tmp/mptcp-resume-ui.log 2>&1 || return 1
-
- code="$(curl -4 -sS --max-time 10 -o /dev/null \
-  -w '%{http_code}' \
-  https://connectivitycheck.gstatic.com/generate_204)"
- [ "$code" = 204 ] || return 1
-
- rm -f "$PAUSED"
+ disable_diversion
+ echo ERROR=transparent_diversion_unsafe
+ return 1
 }
 
 case "$1" in
@@ -189,7 +176,7 @@ call)
  ;;
  reconnect)
   [ -e "$PAUSED" ] && {
-   reply 0 "Mode Direct + GeoSite sedang aktif"
+   reply 0 "Mode Direct sedang aktif"
    exit 0
   }
   /usr/sbin/mptcp-reconnect >/tmp/mptcp-reconnect-ui.log 2>&1 &
@@ -197,59 +184,32 @@ call)
  ;;
  pause)
   [ -e "$PAUSED" ] && {
-   reply 1 "Mode Direct + GeoSite sudah aktif"
+   reply 1 "Mode Direct sudah aktif"
    exit 0
   }
 
   if direct_mode; then
-   reply 1 "MPTCP dijeda; Direct + GeoSite aktif"
+   reply 1 "MPTCP dijeda; Direct aktif"
   else
-   restore_profiles >/dev/null 2>&1 || true
-   rm -f "$PAUSED"
+   disable_diversion
+   touch "$PAUSED"
    for svc in bsbf-mptcp bsbf-endpoint-repair mptcp-autoreconnect; do
-    enable_service "$svc"
+    disable_service "$svc"
+    /etc/init.d/"$svc" stop >/dev/null 2>&1 || true
    done
-   nft -f /usr/share/bsbf/bsbf_bonding.nft >/dev/null 2>&1 || true
-   "$PROFILE_RESTART" >/dev/null 2>&1 || true
-   if timeout 40 /usr/sbin/mptcp-reconnect >/tmp/mptcp-pause-rollback.log 2>&1; then
-    reply 0 "Direct gagal; mode tunnel dipulihkan"
-   else
-    reply 0 "Direct gagal; rollback tunnel belum sehat"
-   fi
+   ip mptcp endpoint flush >/dev/null 2>&1 || true
+   reply 0 "Direct gagal disiapkan; mode Direct darurat dipertahankan"
+
   fi
  ;;
  resume_check)
-  O="$(timeout 15 /usr/sbin/mptcp-resume-safe 2>&1)"
-  R=$?
-  json_init
-  json_add_boolean ok "$([ "$R" = 0 ] && echo 1 || echo 0)"
-  json_add_int rc "$R"
-  json_add_string message "$O"
-  json_dump
+  reply 0 "Aktivasi diblokir: diversion transparan belum aman"
  ;;
-
  resume)
-  [ -e "$PAUSED" ] || {
-   reply 1 "MPTCP sudah aktif"
-   exit 0
-  }
-
-  O="$(timeout 15 /usr/sbin/mptcp-resume-safe 2>&1)"
-  R=$?
-  if [ "$R" -ne 0 ]; then
-   reply 0 "Aktivasi dibatalkan: $O"
-   exit 0
-  fi
-  if tunnel_mode; then
-   reply 1 "Pengaktifan MPTCP dimulai"
-  else
-   if direct_mode reuse; then
-    reply 0 "Aktivasi gagal; mode Direct dipulihkan"
-   else
-    reply 0 "Aktivasi dan rollback Direct gagal"
-   fi
-  fi
+  disable_diversion
+  reply 0 "Aktivasi diblokir: diversion transparan belum aman"
  ;;
+
  *) reply 0 "Metode tidak tersedia" ;;
  esac
 ;;

@@ -9,8 +9,6 @@ var settings=rpc.declare({object:'mptcp-manager',method:'settings',expect:{}});
 var testPath=rpc.declare({
  object:'mptcp-manager',method:'test',params:['iface'],expect:{}
 });
-var resumeCheck=rpc.declare({object:'mptcp',method:'resume_check',expect:{}});
-var resumeMptcp=rpc.declare({object:'mptcp',method:'resume',expect:{}});
 var pauseMptcp=rpc.declare({object:'mptcp',method:'pause',expect:{}});
 
 function size(n){
@@ -37,7 +35,7 @@ return view.extend({
    var actionAttrs={
     class:'btn cbi-button cbi-button-apply ms-action'
    };
-   if(Number(h.profile_count||0)===0)
+   if(h.paused||Number(h.profile_count||0)===0)
     actionAttrs.disabled='';
    var internet=h.http==='204';
 
@@ -102,45 +100,15 @@ return view.extend({
      ]),
      E('button',Object.assign(actionAttrs,{
       click:function(ev){
+       if(h.paused)return;
        var b=ev.currentTarget;
-       var progressTimer=null;
-       function delay(){return new Promise(function(ok){setTimeout(ok,2000);});}
-       function waitReady(left){
-        return status().then(function(s){
-         if(!s.paused && s.http==="204" && Number(s.endpoint)>=1 && Number(s.subflow)>=1)
-          return {ok:true,message:"MPTCP aktif; status terverifikasi"};
-         if(left<=1)throw new Error("Aktivasi belum sehat setelah 30 detik");
-         return delay().then(function(){return waitReady(left-1);});
-        },function(){
-         if(left<=1)throw new Error("Status MPTCP tidak dapat diverifikasi");
-         return delay().then(function(){return waitReady(left-1);});
-        });
-       }
        b.disabled=true;
-       var run;
-       if(h.paused){
-        run=resumeCheck().then(function(r){
-         if(!r.ok)throw new Error(r.message||"Precheck gagal");
-         var stages=["Memulihkan tunnel...","Membentuk endpoint...","Memeriksa internet..."];
-         var stage=0;
-         b.textContent="Memvalidasi konfigurasi...";
-         progressTimer=setInterval(function(){
-          b.textContent=stages[Math.min(stage++,stages.length-1)];
-         },4000);
-         return resumeMptcp().then(function(){return waitReady(15);},function(){return waitReady(15);});
-        });
-       }else run=pauseMptcp();
-       return run.then(function(r){
+       return pauseMptcp().then(function(r){
         ui.addNotification(null,E("p",{},r.message||"Selesai"),r.ok?"info":"error");
         return loadAll().then(draw);
-       }).catch(function(e){
-        ui.addNotification(null,E("p",{},e.message),"error");
-       }).finally(function(){
-        if(progressTimer)clearInterval(progressTimer);
-        b.disabled=false;
-       });
+       }).finally(function(){b.disabled=false;});
       }
-     }),Number(h.profile_count||0)===0?'Buat Profil Xray Dahulu':(active?'Jeda MPTCP':'Periksa & Aktifkan MPTCP'))
+     }),h.paused?'Aktivasi MPTCP Diblokir':'Jeda MPTCP')
     ]),
 
     E('div',{class:'ms-section'},[

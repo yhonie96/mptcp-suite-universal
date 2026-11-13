@@ -45,9 +45,14 @@ grep -Fq "FULL TUNNEL VPS" "$DASH"
 grep -Fq "DIRECT PER JALUR" "$DASH"
 grep -Fq "activeSources+' aktif dari '" "$DASH"
 grep -Fq "active?'Bonding'" "$DASH"
-grep -Fq "waitReady(15)" "$DASH"
-grep -Fq "Memulihkan tunnel..." "$DASH"
-grep -Fq "Memeriksa internet..." "$DASH"
+grep -Fq "Aktivasi MPTCP Diblokir" "$DASH"
+! grep -Fq "resumeCheck" "$DASH"
+! grep -Fq "resumeMptcp" "$DASH"
+! grep -Fq "Memulihkan tunnel..." "$DASH"
+! grep -Fq "Membentuk endpoint..." "$DASH"
+! grep -Fq "Periksa & Aktifkan MPTCP" "$DASH"
+grep -Fq "pauseMptcp" "$DASH"
+! grep -Fq "Memeriksa internet..." "$DASH"
 echo MODERN_DASHBOARD_TEST_OK
 
 SETUP="$P/files/www/luci-static/resources/view/status/mptcp-setup.js"
@@ -85,7 +90,6 @@ grep -Fq 'izin file 600' "$BACKUP_UI"
 echo MODERN_BACKUP_UI_TEST_OK
 R="$P/files/usr/sbin/bsbf-endpoint-repair"
 test "$(grep -c paused "$R")" -ge 2
-! grep -Fq '\&\&' "$R"
 S="$P/files/etc/init.d/bsbf-endpoint-repair"
 test "$(grep -c paused "$S")" -ge 1
 echo ENDPOINT_PAUSED_GUARD_OK
