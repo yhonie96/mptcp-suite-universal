@@ -25,8 +25,6 @@ rm -f /run/bsbf-mptcp-supported /run/bsbf-mptcp-not-supported /run/bsbf-mptcp-no
 touch /run/bsbf-mptcp-supported /run/bsbf-mptcp-not-supported /run/bsbf-mptcp-no-connectivity
 /etc/init.d/bsbf-mptcp start
 
-ip rule show | grep -q 'fwmark 0x1 lookup 10000' ||
- ip rule add pref 100 fwmark 0x1 lookup 10000
 ip route replace local 0.0.0.0/0 dev lo table 10000
 
 sleep 12
