@@ -21,13 +21,26 @@ validate_config(){
 }
 snapshot(){
  {
+  echo TABLE_PRIMARY
   ip route show table "$PT"
+  echo TABLE_SECONDARY
   ip route show table "$ST"
+  echo TABLE_TPROXY
   ip route show table "$TT"
+  echo RULES
   ip rule show | grep -E "^($BP|$PP|$TP):" || true
  } >"$SNAP"
 }
-rollback(){ echo ERROR=apply_not_implemented; return 1; }
+restore_snapshot(){
+ [ -s "$SNAP" ] || return 1
+ ip rule del priority "$BP" 2>/dev/null || true
+ ip rule del priority "$PP" 2>/dev/null || true
+ ip rule del priority "$TP" 2>/dev/null || true
+ ip route flush table "$PT" 2>/dev/null || true
+ ip route flush table "$ST" 2>/dev/null || true
+ ip route flush table "$TT" 2>/dev/null || true
+}
+rollback(){ restore_snapshot; }
 case "$MODE" in
  --dry-run) exec "$PLAN" ;;
  --apply)
@@ -42,6 +55,8 @@ case "$MODE" in
   TP="$(get tproxy_priority)"
   [ "$ALLOCATED" = 1 ] || { echo ERROR=not_allocated; exit 6; }
   validate_config || exit 7
+  echo ERROR=apply_not_implemented
+  exit 8
   snapshot
   rollback
   exit 5

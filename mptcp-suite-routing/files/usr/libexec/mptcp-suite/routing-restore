@@ -1,0 +1,61 @@
+#!/bin/sh
+set -eu
+SNAP="${1:-}"; PT="${2:-}"; ST="${3:-}"; TT="${4:-}"
+BP="${5:-}"; PP="${6:-}"; TP="${7:-}"
+[ -r "$SNAP" ] || { echo ERROR=snapshot_missing; exit 1; }
+case "$PT:$ST:$TT:$BP:$PP:$TP" in *[!0-9:]*) echo ERROR=invalid_arguments; exit 1;; esac
+validate_snapshot(){
+ awk 'BEGIN{s=""} /^(TABLE_PRIMARY|TABLE_SECONDARY|TABLE_TPROXY|RULES)$/{s=$0;next} /^default via [0-9.]+ dev [A-Za-z0-9_.:-]+ metric [0-9]+$/{if(s!="TABLE_PRIMARY"&&s!="TABLE_SECONDARY")exit 1;next} /^local default dev lo scope host$/{if(s!="TABLE_TPROXY")exit 1;next} /^[0-9]+: from all fwmark 0x[0-9A-Fa-f]+ lookup [0-9]+$/{if(s!="RULES")exit 1;next} NF{exit 1}' "$SNAP"
+}
+restore_route(){
+ LINE="$1"; TABLE="$2"
+ set -- $LINE
+ [ "$1" = default ] && [ "$2" = via ] && [ "$4" = dev ] &&
+ [ "$6" = metric ] && [ "$#" -eq 7 ] || {
+  echo ERROR=unsafe_snapshot; return 2
+ }
+ case "$3:$5:$7" in *[!0-9.A-Za-z_:-]*)
+  echo ERROR=unsafe_snapshot; return 2;;
+ esac
+ ip route replace default via "$3" dev "$5" table "$TABLE" metric "$7"
+}
+restore_rule(){
+ LINE="$1"; set -- $LINE
+ [ "$2" = from ] && [ "$3" = all ] &&
+ [ "$4" = fwmark ] && [ "$6" = lookup ] &&
+ [ "$#" -eq 7 ] || { echo ERROR=unsafe_snapshot; return 2; }
+ PRI="${1%:}"; MARK="$5"; TABLE="$7"
+ case "$PRI:$MARK:$TABLE" in *[!0-9A-Fa-fx:])
+  echo ERROR=unsafe_snapshot; return 2;; esac
+ case "$PRI:$TABLE" in
+  "$BP:$PT"|"$PP:$ST"|"$TP:$TT") ;;
+  *) echo ERROR=unsafe_snapshot; return 2;;
+ esac
+ ip rule add priority "$PRI" fwmark "$MARK" lookup "$TABLE"
+}
+validate_snapshot || { echo ERROR=unsafe_snapshot; exit 2; }
+SECTION=
+while IFS= read -r LINE; do
+ case "$LINE" in
+  TABLE_PRIMARY) SECTION=primary ;;
+  TABLE_SECONDARY) SECTION=secondary ;;
+  TABLE_TPROXY) SECTION=tproxy ;;
+  RULES) SECTION=rules ;;
+  default\ via\ *)
+   [ "$SECTION" = primary ] && restore_route "$LINE" "$PT" ||
+   [ "$SECTION" = secondary ] && restore_route "$LINE" "$ST" ||
+   { echo ERROR=unsafe_snapshot; exit 2; }
+  ;;
+  "local default dev lo scope host")
+   [ "$SECTION" = tproxy ] || { echo ERROR=unsafe_snapshot; exit 2; }
+   ip route replace local 0.0.0.0/0 dev lo table "$TT"
+  ;;
+  [0-9]*:\ from\ all\ fwmark\ *)
+   [ "$SECTION" = rules ] || { echo ERROR=unsafe_snapshot; exit 2; }
+   restore_rule "$LINE"
+  ;;
+  "") ;;
+  *) echo ERROR=unsafe_snapshot; exit 2 ;;
+ esac
+done <"$SNAP"
+echo ROUTING_SNAPSHOT_RESTORE_OK
