@@ -1,8 +1,1 @@
-#!/bin/sh
-set -eu
-F=luci-app-mptcp-suite/files/usr/sbin/mptcp-reconnect
-sh -n "$F"
-grep -Fq '/usr/sbin/mptcp-profile-restart' "$F"
-grep -Fq 'if [ "$N" -ge 1 ]; then' "$F"
-! grep -Eq 'xray-5mbps|/etc/xray/config|main|limit5|12345|12346' "$F"
-echo RECONNECT_GENERIC_OK
+IyEvYmluL3NoCnNldCAtZXUKRj1sdWNpLWFwcC1tcHRjcC1zdWl0ZS9maWxlcy91c3Ivc2Jpbi9tcHRjcC1yZWNvbm5lY3QKc2ggLW4gIiRGIgpncmVwIC1GcSAnL3Vzci9zYmluL21wdGNwLXByb2ZpbGUtcmVzdGFydCcgIiRGIgpncmVwIC1GcSAnaWYgWyAiJE4iIC1nZSAxIF07IHRoZW4nICIkRiIKZ3JlcCAtRnEgJy9ldGMvbXB0Y3Atc3VpdGUvcGF1c2VkJyAiJEYiCmdyZXAgLUZxICdNUFRDUF9SRVNVTUUnICIkRiIKZ3JlcCAtRnEgJ3N0YXR1cyBqZWRhOyByZWNvbm5lY3QgZGlsZXdhdGknICIkRiIKISBncmVwIC1FcSAneHJheS01bWJwc3wvZXRjL3hyYXkvY29uZmlnfG1haW58bGltaXQ1fDEyMzQ1fDEyMzQ2JyAiJEYiCmVjaG8gUkVDT05ORUNUX0dFTkVSSUNfT0sK
