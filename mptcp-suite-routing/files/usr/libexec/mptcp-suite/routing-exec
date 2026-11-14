@@ -3,6 +3,7 @@ set -eu
 MODE="${1:---dry-run}"
 PLAN="${MPTCP_ROUTING_PLAN_BIN:-/usr/libexec/mptcp-suite/routing-plan}"
 RESTORE="${MPTCP_ROUTING_RESTORE_BIN:-/usr/libexec/mptcp-suite/routing-restore}"
+PLAN_FILE="${MPTCP_ROUTING_PLAN_FILE:-/tmp/mptcp-routing.plan}"
 PAUSED_FILE="${MPTCP_PAUSED_FILE:-/etc/mptcp-suite/paused}"
 CFG="${MPTCP_ROUTING_CONFIG:-/etc/config}"
 get(){ uci -c "$CFG" -q get "mptcp_suite.routing.$1"; }
@@ -19,6 +20,19 @@ validate_config(){
  case "$BP:$PP:$TP" in *[!0-9:]*) echo ERROR=incomplete_priority; return 1;; esac
  [ "$BP" != "$PP" ] && [ "$BP" != "$TP" ] && [ "$PP" != "$TP" ] || { echo ERROR=duplicate_priorities; return 1; }
  [ "$BP" -ge 1 ] && [ "$BP" -le 32765 ] && [ "$PP" -ge 1 ] && [ "$PP" -le 32765 ] && [ "$TP" -ge 1 ] && [ "$TP" -le 32765 ] || { echo ERROR=priority_range; return 1; }
+}
+run_plan(){
+ [ -r "$PLAN_FILE" ] || { echo ERROR=plan_missing; return 1; }
+ while IFS= read -r CMD; do
+  CMD="${CMD%%#*}"; set -- $CMD
+  [ "$#" -gt 0 ] || continue
+  OK=0
+  [ "$#" -eq 10 ] && [ "$1:$2:$3:$4:$5:$7:$9" = "ip:route:replace:default:via:dev:table" ] && { [ "${10}" = "$PT" ] || [ "${10}" = "$ST" ]; } && OK=1
+  [ "$#" -eq 9 ] && [ "$1:$2:$3:$4:$5:$6:$7:$8:$9" = "ip:route:replace:local:0.0.0.0/0:dev:lo:table:$TT" ] && OK=1
+  [ "$#" -eq 9 ] && [ "$1:$2:$3:$4:$6:$8" = "ip:rule:add:priority:fwmark:lookup" ] && { [ "$5:$7:$9" = "$BP:$BM:$PT" ] || [ "$5:$7:$9" = "$PP:$PM:$ST" ] || [ "$5:$7:$9" = "$TP:$TM:$TT" ]; } && OK=1
+  [ "$OK" = 1 ] || { echo ERROR=unsafe_command; return 2; }
+  "$@" || return 1
+ done <"$PLAN_FILE"
 }
 snapshot(){
  {
@@ -43,6 +57,13 @@ restore_snapshot(){
 }
 rollback(){ restore_snapshot && "$RESTORE" "$SNAP" "$PT" "$ST" "$TT" "$BP" "$PP" "$TP"; }
 case "$MODE" in
+ --test-plan)
+  [ "${MPTCP_ROUTING_TEST:-0}" = 1 ] || { echo ERROR=test_locked; exit 9; }
+  PT="${MPTCP_TEST_PT:-11001}"; ST="${MPTCP_TEST_ST:-11002}"; TT="${MPTCP_TEST_TT:-11003}"
+  BP="${MPTCP_TEST_BP:-98}"; PP="${MPTCP_TEST_PP:-99}"; TP="${MPTCP_TEST_TP:-100}"
+  BM="${MPTCP_TEST_BM:-0x4A02}"; PM="${MPTCP_TEST_PM:-0x4A03}"; TM="${MPTCP_TEST_TM:-0x4A01}"
+  run_plan
+ ;;
  --dry-run) exec "$PLAN" ;;
  --apply)
   [ ! -e "$PAUSED_FILE" ] || { echo ERROR=paused; exit 3; }
@@ -54,6 +75,9 @@ case "$MODE" in
   BP="$(get primary_priority)"
   PP="$(get secondary_priority)"
   TP="$(get tproxy_priority)"
+  BM="$(get bypass_mark)"
+  PM="$(get policy_mark)"
+  TM="$(get tproxy_mark)"
   [ "$ALLOCATED" = 1 ] || { echo ERROR=not_allocated; exit 6; }
   validate_config || exit 7
   echo ERROR=apply_not_implemented
