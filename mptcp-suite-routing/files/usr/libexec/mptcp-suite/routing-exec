@@ -21,6 +21,16 @@ validate_config(){
  [ "$BP" != "$PP" ] && [ "$BP" != "$TP" ] && [ "$PP" != "$TP" ] || { echo ERROR=duplicate_priorities; return 1; }
  [ "$BP" -ge 1 ] && [ "$BP" -le 32765 ] && [ "$PP" -ge 1 ] && [ "$PP" -le 32765 ] && [ "$TP" -ge 1 ] && [ "$TP" -le 32765 ] || { echo ERROR=priority_range; return 1; }
 }
+generate_plan(){
+ rm -f "$PLAN_FILE.tmp"
+ "$PLAN" "$CFG" "$PLAN_FILE.tmp" >/dev/null || {
+  rm -f "$PLAN_FILE.tmp"; return 1
+ }
+ [ -s "$PLAN_FILE.tmp" ] || {
+  rm -f "$PLAN_FILE.tmp"; return 1
+ }
+ mv "$PLAN_FILE.tmp" "$PLAN_FILE"
+}
 run_plan(){
  [ -r "$PLAN_FILE" ] || { echo ERROR=plan_missing; return 1; }
  while IFS= read -r CMD; do
@@ -80,6 +90,7 @@ case "$MODE" in
   TM="$(get tproxy_mark)"
   [ "$ALLOCATED" = 1 ] || { echo ERROR=not_allocated; exit 6; }
   validate_config || exit 7
+  generate_plan || { echo ERROR=plan_generation_failed; exit 10; }
   echo ERROR=apply_not_implemented
   exit 8
   snapshot
