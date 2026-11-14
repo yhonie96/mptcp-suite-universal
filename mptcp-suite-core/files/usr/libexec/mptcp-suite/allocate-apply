@@ -19,6 +19,7 @@ verify_values(){
   [ "$A" = "$V" ] || return 1
  done <"$OUT"
  [ "$(uci -c "$CFG" -q get mptcp_suite.routing.allocated)" = 1 ] || return 1
+ [ "$(uci -c "$CFG" -q get mptcp_suite.routing.applied)" = 0 ] || return 1
 }
 : "ERROR=verify_failed"
 apply_values(){
@@ -26,6 +27,7 @@ apply_values(){
   uci -c "$CFG" set "mptcp_suite.routing.$K=$V" || return 1
  done <"$OUT"
  uci -c "$CFG" set "mptcp_suite.routing.allocated=1" || return 1
+ uci -c "$CFG" set "mptcp_suite.routing.applied=0" || return 1
 }
 trap 'rm -f "$OUT"' EXIT
 "$ALLOC" >"$OUT" || { echo ERROR=allocation_failed; exit 1; }

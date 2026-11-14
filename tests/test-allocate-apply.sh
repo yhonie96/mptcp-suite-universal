@@ -92,11 +92,12 @@ sed -i "/^DATA/i limited_port=12002" "$D/alloc"
 : >"$LOG"
 OUT="$(MPTCP_ALLOCATE_APPLY=1 MPTCP_ALLOCATE_BIN="$D/alloc" MPTCP_ALLOCATE_CONFIG="$D/cfg" "$F")"
 [ "$OUT" = ALLOCATION_APPLY_OK ]
-[ "$(wc -l < "$LOG")" -eq 27 ]
+[ "$(wc -l < "$LOG")" -eq 29 ]
 [ "$(tail -n 1 "$LOG")" = "-c $D/cfg commit mptcp_suite" ]
 ! grep -Fq "mptcp_suite.routing=resources" "$LOG"
 grep -Fq "set mptcp_suite.routing.policy_mark=0x4A03" "$LOG"
 grep -Fq "set mptcp_suite.routing.allocated=1" "$LOG"
+grep -Fq "set mptcp_suite.routing.applied=0" "$LOG"
 grep -Fq "verify_values()" "$F"
 grep -Fq "ERROR=verify_failed" "$F"
 echo ALLOCATE_APPLY_MOCK_OK

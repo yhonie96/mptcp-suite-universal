@@ -8,6 +8,7 @@ config core 'core'
 
 config routing 'routing'
 	option allocated '0'
+        option applied '0'
 
 config xray 'xray'
 	option enabled '1'
