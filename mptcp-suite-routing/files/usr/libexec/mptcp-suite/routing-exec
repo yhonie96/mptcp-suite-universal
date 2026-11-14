@@ -20,6 +20,10 @@ validate_config(){
  case "$BP:$PP:$TP" in *[!0-9:]*) echo ERROR=incomplete_priority; return 1;; esac
  [ "$BP" != "$PP" ] && [ "$BP" != "$TP" ] && [ "$PP" != "$TP" ] || { echo ERROR=duplicate_priorities; return 1; }
  [ "$BP" -ge 1 ] && [ "$BP" -le 32765 ] && [ "$PP" -ge 1 ] && [ "$PP" -le 32765 ] && [ "$TP" -ge 1 ] && [ "$TP" -le 32765 ] || { echo ERROR=priority_range; return 1; }
+ [ -n "$BM" ] && [ -n "$PM" ] && [ -n "$TM" ] || { echo ERROR=incomplete_marks; return 1; }
+ case "$BM:$PM:$TM" in *[!0-9A-Fa-fx:]*|*x*X*) echo ERROR=invalid_mark; return 1;; esac
+ case "$BM:$PM:$TM" in 0x1:*|*:0x1:*|*:0x1|0x2:*|*:0x2:*|*:0x2|0x102:*|*:0x102:*|*:0x102) echo ERROR=invalid_mark; return 1;; esac
+ [ "$BM" != "$PM" ] && [ "$BM" != "$TM" ] && [ "$PM" != "$TM" ] || { echo ERROR=duplicate_marks; return 1; }
 }
 generate_plan(){
  rm -f "$PLAN_FILE.tmp"

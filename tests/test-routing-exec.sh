@@ -85,4 +85,7 @@ grep -Fq 'run_plan || { rollback; echo ERROR=plan_apply_failed_snapshot_restored
 grep -Fq 'validate_routes || { rollback; echo ERROR=validation_failed_snapshot_restored; exit 12; }' "$F"
 grep -Fq "ROUTING_APPLY_OK" "$F"
 grep -Fq "apply_transaction()" "$F"
+grep -Fq "ERROR=incomplete_marks" "$F"
+grep -Fq "ERROR=invalid_mark" "$F"
+grep -Fq "ERROR=duplicate_marks" "$F"
 echo ROUTING_EXEC_STRUCTURE_OK

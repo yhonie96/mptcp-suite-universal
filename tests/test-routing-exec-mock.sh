@@ -44,6 +44,12 @@ echo "*.tproxy_table) echo 11003;;" >> "$U"
 echo "*.primary_priority) echo 98;;" >> "$U"
 echo "*.secondary_priority) echo 99;;" >> "$U"
 echo "*.tproxy_priority) echo 100;;" >> "$U"
+echo "*.bypass_mark) echo 0x4A02;;" >> "$U"
+echo "*.policy_mark) echo 0x4A03;;" >> "$U"
+echo "*.tproxy_mark) echo 0x4A01;;" >> "$U"
+echo "*.bypass_mark) echo 0x4A02;;" >> "$U"
+echo "*.policy_mark) echo 0x4A03;;" >> "$U"
+echo "*.tproxy_mark) echo 0x4A01;;" >> "$U"
 echo "esac" >> "$U"
 chmod 755 "$U"
 set +e
@@ -87,3 +93,12 @@ set -e
 [ "$RC" -eq 7 ]
 [ "$OUT" = ERROR=duplicate_priorities ]
 echo ROUTING_EXEC_DUPLICATE_PRIORITY_OK
+sed -i "s/*.primary_priority) echo 99/*.primary_priority) echo 98/" "$U"
+sed -i "s/*.bypass_mark) echo 0x4A02/*.bypass_mark) echo 0x4A03/" "$U"
+set +e; OUT="$(PATH="$D/bin:$PATH" MPTCP_ROUTING_APPLY=1 MPTCP_PAUSED_FILE="$D/paused" "$E" --apply 2>&1)"; RC=$?; set -e
+[ "$RC" -eq 7 ]; [ "$OUT" = ERROR=duplicate_marks ]
+echo ROUTING_EXEC_DUPLICATE_MARK_OK
+sed -i "s/*.bypass_mark) echo 0x4A03/*.bypass_mark) echo 0x102/" "$U"
+set +e; OUT="$(PATH="$D/bin:$PATH" MPTCP_ROUTING_APPLY=1 MPTCP_PAUSED_FILE="$D/paused" "$E" --apply 2>&1)"; RC=$?; set -e
+[ "$RC" -eq 7 ]; [ "$OUT" = ERROR=invalid_mark ]
+echo ROUTING_EXEC_LEGACY_MARK_REJECT_OK
