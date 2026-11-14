@@ -67,16 +67,18 @@ validate_routes(){
 }
 
 snapshot(){
+ TMP="$SNAP.tmp"; rm -f "$TMP"
  {
   echo TABLE_PRIMARY
-  ip route show table "$PT"
+  ip route show table "$PT" || return 1
   echo TABLE_SECONDARY
-  ip route show table "$ST"
+  ip route show table "$ST" || return 1
   echo TABLE_TPROXY
-  ip route show table "$TT"
+  ip route show table "$TT" || return 1
   echo RULES
   ip rule show | grep -E "^($BP|$PP|$TP):" || true
- } >"$SNAP"
+ } >"$TMP" || { rm -f "$TMP"; return 1; }
+ mv "$TMP" "$SNAP"
 }
 restore_snapshot(){
  [ -s "$SNAP" ] || return 1
@@ -89,9 +91,9 @@ restore_snapshot(){
 }
 rollback(){ restore_snapshot && "$RESTORE" "$SNAP" "$PT" "$ST" "$TT" "$BP" "$PP" "$TP"; }
 apply_transaction(){
- snapshot || return 1
- run_plan || { rollback || return 13; echo ERROR=plan_apply_failed_snapshot_restored; return 11; }
- validate_routes || { rollback || return 13; echo ERROR=validation_failed_snapshot_restored; return 12; }
+ snapshot || { echo ERROR=snapshot_failed; return 14; }
+ run_plan || { rollback || { echo ERROR=rollback_failed; return 13; }; echo ERROR=plan_apply_failed_snapshot_restored; return 11; }
+ validate_routes || { rollback || { echo ERROR=rollback_failed; return 13; }; echo ERROR=validation_failed_snapshot_restored; return 12; }
  echo ROUTING_APPLY_OK
 }
 case "$MODE" in

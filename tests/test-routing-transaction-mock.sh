@@ -76,3 +76,11 @@ echo ROUTING_TRANSACTION_RESTORE_FAILURE_OK
 set +e; OUT="$(MPTCP_ROUTING_TEST=1 MPTCP_ROUTING_PLAN_FILE="$P" MPTCP_ROUTING_RESTORE_BIN="$D/restore" "$E" --test-transaction 2>&1)"; RC=$?; set -e; unset MOCK_BAD_ROUTE
 [ "$RC" -eq 12 ]; [ "$OUT" = ERROR=validation_failed_snapshot_restored ]; grep -Fq RESTORE_CALLED "$LOG"
 echo ROUTING_TRANSACTION_VALIDATION_ROLLBACK_OK
+: >"$LOG"; rm -f /tmp/mptcp-routing.snapshot
+export MOCK_IP_FAIL="route show table 11002"
+set +e; OUT="$(MPTCP_ROUTING_TEST=1 MPTCP_ROUTING_PLAN_FILE="$P" "$E" --test-transaction 2>&1)"; RC=$?; set -e; unset MOCK_IP_FAIL
+[ "$RC" -eq 14 ]
+[ "$OUT" = ERROR=snapshot_failed ]
+test ! -e /tmp/mptcp-routing.snapshot
+! grep -Fq "route replace" "$LOG"
+echo ROUTING_TRANSACTION_SNAPSHOT_FAILURE_OK
