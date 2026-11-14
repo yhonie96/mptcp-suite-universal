@@ -113,3 +113,8 @@ set +e; OUT="$(MPTCP_ALLOCATE_APPLY=1 MPTCP_ALLOCATE_BIN="$D/alloc" MPTCP_ALLOCA
 [ "$RC" -eq 5 ]; [ "$OUT" = ERROR=verify_failed ]
 grep -Fq "revert mptcp_suite" "$LOG"; ! grep -Fq "commit mptcp_suite" "$LOG"
 echo ALLOCATE_VERIFY_ROLLBACK_OK
+: >"$LOG"; : >"$STATE"; export UCI_FAIL="-c $D/cfg commit mptcp_suite"
+set +e; OUT="$(MPTCP_ALLOCATE_APPLY=1 MPTCP_ALLOCATE_BIN="$D/alloc" MPTCP_ALLOCATE_CONFIG="$D/cfg" "$F" 2>&1)"; RC=$?; set -e; unset UCI_FAIL
+[ "$RC" -eq 6 ]; [ "$OUT" = ERROR=commit_failed ]
+grep -Fq "revert mptcp_suite" "$LOG"
+echo ALLOCATE_COMMIT_FAILURE_OK
