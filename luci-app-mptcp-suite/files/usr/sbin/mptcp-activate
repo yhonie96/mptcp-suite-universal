@@ -1,0 +1,61 @@
+#!/bin/sh
+set -eu
+MODE="${1:---dry-run}"
+DIR="${MPTCP_ACTIVATE_DIR:-/tmp/mptcp-activate}"
+MANIFEST="${MPTCP_MANIFEST:-/etc/mptcp-suite/tunnel-profiles.tsv}"
+PAUSED="${MPTCP_PAUSED_FILE:-/etc/mptcp-suite/paused}"
+PRECHECK="${MPTCP_PRECHECK:-/usr/sbin/mptcp-resume-safe}"
+ROUTING="${MPTCP_ROUTING_EXEC:-/usr/libexec/mptcp-suite/routing-exec}"
+RBACK="${MPTCP_ROUTING_ROLLBACK:-/usr/libexec/mptcp-suite/routing-rollback}"
+DRESTORE="${MPTCP_DIRECT_RESTORE:-/usr/sbin/mptcp-direct-restore}"
+RESTART="${MPTCP_PROFILE_RESTART:-/usr/sbin/mptcp-profile-restart}"
+RECONNECT="${MPTCP_RECONNECT:-/usr/sbin/mptcp-reconnect}"
+SYNC="${MPTCP_SYNC_5M:-/usr/lib/netcontrol/bsbf-5mbps-sync.sh}"
+CURL="${MPTCP_CURL_BIN:-curl}"
+IP="${MPTCP_IP_BIN:-ip}"
+SS="${MPTCP_SS_BIN:-ss}"
+XRAY="${MPTCP_XRAY_BIN:-xray}"
+SNAP="$DIR/routing.snapshot"
+case "$MODE" in --dry-run) echo MPTCP_ACTIVATE_DRY_RUN; exit 0;; --apply) ;; *) echo ERROR=invalid_mode; exit 2;; esac
+[ -e "$PAUSED" ] || { echo ERROR=not_paused; exit 3; }
+[ -s "$MANIFEST" ] || { echo ERROR=missing_manifest; exit 4; }
+rm -rf "$DIR"; mkdir -p "$DIR/direct"
+rollback(){
+ MPTCP_DIRECT_SNAPSHOT_DIR="$DIR/direct" "$DRESTORE" --apply >/dev/null 2>&1 || true
+ MPTCP_ROUTING_SNAPSHOT="$SNAP" "$RBACK" --apply >/dev/null 2>&1 || true
+ touch "$PAUSED"
+ echo "MPTCP_ACTIVATE_ROLLBACK stage=$STAGE"
+ exit 1
+}
+trap rollback INT TERM
+STAGE=precheck
+"$PRECHECK" >/dev/null 2>&1 || rollback
+STAGE=snapshot_direct
+while IFS="$(printf '\t')" read -r id cfg svc vt ft tunnel; do
+ [ -n "$id" ] || continue
+ [ -s "$cfg" ] && [ -s "$tunnel" ] || rollback
+ cp -p "$cfg" "$DIR/direct/$id.json" || rollback
+ "$XRAY" run -test -c "$tunnel" >/dev/null 2>&1 || rollback
+done <"$MANIFEST"
+rm -f "$PAUSED"
+STAGE=routing
+MPTCP_ROUTING_SNAPSHOT="$SNAP" "$ROUTING" --apply >/dev/null 2>&1 || rollback
+STAGE=tunnel
+while IFS="$(printf '\t')" read -r id cfg svc vt ft tunnel; do
+ [ -n "$id" ] || continue
+ cp -p "$tunnel" "$cfg" || rollback
+done <"$MANIFEST"
+STAGE=profile_restart
+"$RESTART" >/dev/null 2>&1 || rollback
+STAGE=reconnect
+MPTCP_RESUME=1 "$RECONNECT" >/dev/null 2>&1 || rollback
+STAGE=sync
+[ -x "$SYNC" ] && "$SYNC" >/dev/null 2>&1 || true
+STAGE=validate
+code="$($CURL -4 -sS --max-time 12 -o /dev/null -w '%{http_code}' https://connectivitycheck.gstatic.com/generate_204 2>/dev/null || true)"
+[ "$code" = 204 ] || rollback
+ep="$($IP mptcp endpoint show 2>/dev/null | grep -c . || true)"
+sf="$($SS -Mi 2>/dev/null | grep -o 'subflows_total:[0-9]*' | cut -d: -f2 | sort -nr | head -n1)"; sf="${sf:-0}"
+[ "$ep" -ge 2 ] && [ "$sf" -ge 2 ] || rollback
+rm -f "$PAUSED" "$SNAP"
+echo "MPTCP_ACTIVATE_OK http=$code endpoint=$ep subflow=$sf"

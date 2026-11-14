@@ -1,12 +1,15 @@
 #!/bin/sh
 . /usr/share/libubox/jshn.sh
 
-DIR=/etc/mptcp-suite
+DIR="${MPTCP_SUITE_DIR:-/etc/mptcp-suite}"
 PAUSED=$DIR/paused
 MANIFEST=$DIR/tunnel-profiles.tsv
 PROFILE_LIST=/usr/sbin/mptcp-profile-list
 PROFILE_BACKUP=/usr/sbin/mptcp-profile-backup
 PROFILE_RESTART=/usr/sbin/mptcp-profile-restart
+DIRECT_SNAPSHOT="${MPTCP_DIRECT_SNAPSHOT:-/usr/sbin/mptcp-direct-snapshot}"
+RESUME_CHECK="${MPTCP_RESUME_CHECK:-/usr/sbin/mptcp-resume-safe}"
+ACTIVATE="${MPTCP_ACTIVATE:-/usr/sbin/mptcp-activate}"
 CHECK_URL=https://connectivitycheck.gstatic.com/generate_204
 
 reply() {
@@ -189,7 +192,11 @@ call)
   }
 
   if direct_mode; then
-   reply 1 "MPTCP dijeda; Direct aktif"
+   if "$DIRECT_SNAPSHOT" --apply >/tmp/mptcp-direct-snapshot.log 2>&1; then
+    reply 1 "MPTCP dijeda; Direct aktif"
+   else
+    reply 0 "Direct aktif, tetapi snapshot rollback gagal"
+   fi
   else
    disable_diversion
    touch "$PAUSED"
@@ -203,11 +210,19 @@ call)
   fi
  ;;
  resume_check)
-  reply 0 "Aktivasi diblokir: diversion transparan belum aman"
+  if "$RESUME_CHECK" >/tmp/mptcp-resume-check.log 2>&1; then
+   reply 1 "Aktivasi siap"
+  else
+   reply 0 "Precheck aktivasi gagal"
+  fi
  ;;
  resume)
-  disable_diversion
-  reply 0 "Aktivasi diblokir: diversion transparan belum aman"
+  if "$ACTIVATE" --apply >/tmp/mptcp-activate.log 2>&1; then
+   reply 1 "MPTCP aktif"
+  else
+   touch "$PAUSED"
+   reply 0 "Aktivasi gagal; Direct dipertahankan"
+  fi
  ;;
 
  *) reply 0 "Metode tidak tersedia" ;;

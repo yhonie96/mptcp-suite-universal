@@ -1,0 +1,24 @@
+#!/bin/sh
+set -eu
+MODE="${1:---dry-run}"
+PAUSED="${MPTCP_PAUSED_FILE:-/etc/mptcp-suite/paused}"
+DIRECT="${MPTCP_DIRECT_RESTORE:-/usr/sbin/mptcp-direct-restore}"
+ACTIVATE="${MPTCP_ACTIVATE:-/usr/sbin/mptcp-activate}"
+DIRECT_DIR="${MPTCP_DIRECT_SNAPSHOT_DIR:-/etc/mptcp-suite}"
+case "$MODE" in
+ --dry-run) echo MPTCP_BOOT_DRY_RUN; exit 0;;
+ --apply) ;;
+ *) echo ERROR=invalid_mode; exit 2;;
+esac
+if [ -e "$PAUSED" ]; then
+ echo MPTCP_BOOT_PAUSED_OK
+ exit 0
+fi
+MPTCP_DIRECT_SNAPSHOT_DIR="$DIRECT_DIR" "$DIRECT" --apply >/dev/null 2>&1 || {
+ touch "$PAUSED"; echo ERROR=boot_direct_restore; exit 3;
+}
+touch "$PAUSED"
+"$ACTIVATE" --apply >/dev/null 2>&1 || {
+ touch "$PAUSED"; echo ERROR=boot_activate; exit 4;
+}
+echo MPTCP_BOOT_ACTIVE_OK

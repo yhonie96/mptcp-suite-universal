@@ -1,0 +1,31 @@
+#!/bin/sh
+set -eu
+MODE="${1:---dry-run}"
+MANIFEST="${MPTCP_MANIFEST:-/etc/mptcp-suite/tunnel-profiles.tsv}"
+DIRECT_DIR="${MPTCP_DIRECT_SNAPSHOT_DIR:-/tmp/mptcp-activate/direct}"
+PROFILE_RESTART="${MPTCP_PROFILE_RESTART:-/usr/sbin/mptcp-profile-restart}"
+PAUSED="${MPTCP_PAUSED_FILE:-/etc/mptcp-suite/paused}"
+NFT="${MPTCP_NFT_BIN:-nft}"
+IP="${MPTCP_IP_BIN:-ip}"
+XRAY="${MPTCP_XRAY_BIN:-xray}"
+case "$MODE" in --dry-run) echo DIRECT_RESTORE_DRY_RUN; exit 0;; --apply) ;; *) echo ERROR=invalid_mode; exit 2;; esac
+[ -s "$MANIFEST" ] || { echo ERROR=missing_manifest; exit 3; }
+TMP="${MPTCP_DIRECT_TMP:-/tmp/mptcp-direct-restore.$$}"
+mkdir -p "$TMP"
+trap 'rm -rf "$TMP"' EXIT INT TERM
+while IFS="$(printf '\t')" read -r id cfg svc vt ft snap; do
+ [ -n "$id" ] || continue
+ src="$DIRECT_DIR/$id.json"
+ [ -s "$src" ] || { echo "ERROR=missing_direct:$id"; exit 4; }
+ "$XRAY" run -test -c "$src" >/dev/null 2>&1 || { echo "ERROR=invalid_direct:$id"; exit 5; }
+ cp -p "$src" "$TMP/$id.json"
+done <"$MANIFEST"
+"$NFT" delete table ip bsbf_bonding >/dev/null 2>&1 || true
+"$IP" mptcp endpoint flush >/dev/null 2>&1 || true
+while IFS="$(printf '\t')" read -r id cfg svc vt ft snap; do
+ [ -n "$id" ] || continue
+ cp -p "$TMP/$id.json" "$cfg" || exit 6
+done <"$MANIFEST"
+"$PROFILE_RESTART" >/dev/null 2>&1 || { echo ERROR=profile_restart; exit 7; }
+mkdir -p "${PAUSED%/*}"; touch "$PAUSED"
+echo DIRECT_RESTORE_OK

@@ -1,0 +1,8 @@
+#!/bin/sh /etc/rc.common
+START=98
+USE_PROCD=1
+boot() {
+ sleep 15
+ /usr/sbin/mptcp-boot-restore --apply >/tmp/mptcp-boot-restore.log 2>&1 || logger -t mptcp-suite-boot "aktivasi boot gagal; Direct/paused dipertahankan"
+}
+start() { boot; }

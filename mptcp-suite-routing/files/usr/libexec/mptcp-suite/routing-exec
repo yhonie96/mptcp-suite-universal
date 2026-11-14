@@ -8,7 +8,7 @@ PAUSED_FILE="${MPTCP_PAUSED_FILE:-/etc/mptcp-suite/paused}"
 CFG="${MPTCP_ROUTING_CONFIG:-/etc/config}"
 get(){ uci -c "$CFG" -q get "mptcp_suite.routing.$1"; }
 LOCK=/tmp/mptcp-routing.lock
-SNAP=/tmp/mptcp-routing.snapshot
+SNAP="${MPTCP_ROUTING_SNAPSHOT:-/tmp/mptcp-routing.snapshot}"
 exec 9>"$LOCK"
 flock -n 9 || { echo ERROR=locked; exit 2; }
 mark_valid(){ printf "%s\n" "$1" | grep -Eq '^0x[0-9A-Fa-f]{1,8}$'; }

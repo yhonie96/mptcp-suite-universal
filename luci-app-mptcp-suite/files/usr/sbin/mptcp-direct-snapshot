@@ -1,0 +1,28 @@
+#!/bin/sh
+set -eu
+MODE="${1:---dry-run}"
+MANIFEST="${MPTCP_MANIFEST:-/etc/mptcp-suite/tunnel-profiles.tsv}"
+DIR="${MPTCP_SUITE_DIR:-/etc/mptcp-suite}"
+XRAY="${MPTCP_XRAY_BIN:-xray}"
+case "$MODE" in
+ --dry-run) echo DIRECT_SNAPSHOT_DRY_RUN; exit 0;;
+ --apply) ;;
+ *) echo ERROR=invalid_mode; exit 2;;
+esac
+[ -s "$MANIFEST" ] || { echo ERROR=missing_manifest; exit 3; }
+TMP="${MPTCP_DIRECT_SNAPSHOT_TMP:-/tmp/mptcp-direct-snapshot.$$}"
+mkdir -p "$TMP"
+trap 'rm -rf "$TMP"' EXIT INT TERM
+COUNT=0
+while IFS="$(printf '\t')" read -r id cfg svc vt ft tunnel; do
+ [ -n "$id" ] || continue
+ [ -s "$cfg" ] || { echo "ERROR=missing_config:$id"; exit 4; }
+ "$XRAY" run -test -c "$cfg" >/dev/null 2>&1 || { echo "ERROR=invalid_config:$id"; exit 5; }
+ cp -p "$cfg" "$TMP/direct-$id.json"
+ chmod 600 "$TMP/direct-$id.json"
+ COUNT=$((COUNT+1))
+done <"$MANIFEST"
+[ "$COUNT" -gt 0 ] || { echo ERROR=no_profiles; exit 6; }
+mkdir -p "$DIR"
+for f in "$TMP"/direct-*.json; do mv "$f" "$DIR/${f##*/}"; done
+echo "DIRECT_SNAPSHOT_OK count=$COUNT"

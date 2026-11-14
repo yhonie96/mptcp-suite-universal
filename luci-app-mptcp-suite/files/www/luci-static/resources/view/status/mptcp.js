@@ -10,6 +10,8 @@ var testPath=rpc.declare({
  object:'mptcp-manager',method:'test',params:['iface'],expect:{}
 });
 var pauseMptcp=rpc.declare({object:'mptcp',method:'pause',expect:{}});
+var resumeCheck=rpc.declare({object:'mptcp',method:'resume_check',expect:{}});
+var resumeMptcp=rpc.declare({object:'mptcp',method:'resume',expect:{}});
 
 function size(n){
  n=Number(n)||0;
@@ -35,7 +37,7 @@ return view.extend({
    var actionAttrs={
     class:'btn cbi-button cbi-button-apply ms-action'
    };
-   if(h.paused||Number(h.profile_count||0)===0)
+   if(Number(h.profile_count||0)===0)
     actionAttrs.disabled='';
    var internet=h.http==='204';
 
@@ -100,15 +102,22 @@ return view.extend({
      ]),
      E('button',Object.assign(actionAttrs,{
       click:function(ev){
-       if(h.paused)return;
        var b=ev.currentTarget;
        b.disabled=true;
-       return pauseMptcp().then(function(r){
-        ui.addNotification(null,E("p",{},r.message||"Selesai"),r.ok?"info":"error");
+       var action=h.paused
+        ? resumeCheck().then(function(c){
+           if(!c.ok)throw new Error(c.message||'Precheck aktivasi gagal');
+           return resumeMptcp();
+          })
+        : pauseMptcp();
+       return action.then(function(r){
+        ui.addNotification(null,E('p',{},r.message||'Selesai'),r.ok?'info':'error');
         return loadAll().then(draw);
+       }).catch(function(e){
+        ui.addNotification(null,E('p',{},e.message||'Gagal'),'error');
        }).finally(function(){b.disabled=false;});
       }
-     }),h.paused?'Aktivasi MPTCP Diblokir':'Jeda MPTCP')
+     }),h.paused?'Aktifkan MPTCP':'Jeda MPTCP')
     ]),
 
     E('div',{class:'ms-section'},[

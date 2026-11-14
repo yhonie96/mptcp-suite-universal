@@ -101,3 +101,5 @@ grep -Fq "state_commit_failed_snapshot_restored" "$F"
 grep -Fq "apply_transaction quiet" "$F"
 grep -Fq "revert mptcp_suite" "$F"
 echo ROUTING_EXEC_STRUCTURE_OK
+
+grep -Fq 'MPTCP_ROUTING_SNAPSHOT' "$F"
