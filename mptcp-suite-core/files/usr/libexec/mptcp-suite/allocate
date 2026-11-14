@@ -5,6 +5,7 @@ used_table(){ ip rule show | grep -qw "lookup $1"; }
 used_priority(){ ip rule show | grep -Eq "^[[:space:]]*$1:"; }
 used_port(){ ss -lntuH | awk '{print $5}' | grep -q ":$1$"; }
 used_mark(){ nft list ruleset 2>/dev/null | grep -qi "$1"; }
+mark_conflicts_rule(){ C="$1"; ip rule show | while IFS= read -r L; do case "$L" in *" fwmark "*) S="${L#* fwmark }"; S="${S%% *}"; V="${S%/*}"; [ "$V" = "$S" ] && M=0xffffffff || M="${S#*/}"; [ $((C & M)) -eq $((V & M)) ] && exit 7;; esac; done; [ "$?" -eq 7 ]; }
 
 BASE=11001
 while used_table "$BASE" || used_table "$((BASE+1))" || used_table "$((BASE+2))"; do
@@ -28,7 +29,7 @@ done
 MARK_PREFIX=""
 for DEC in $(seq 74 127); do
  HEX="$(printf '%02X' "$DEC")"
- if ! nft list ruleset 2>/dev/null | grep -Eqi "0x0*${HEX}[0-9a-f]{2}"; then
+ if ! mark_conflicts_rule "0x${HEX}02" && ! mark_conflicts_rule "0x${HEX}04" && ! mark_conflicts_rule "0x${HEX}06" && ! nft list ruleset 2>/dev/null | grep -Eqi "0x0*${HEX}[0-9a-f]{2}"; then
   MARK_PREFIX="$HEX"
   break
  fi
@@ -42,9 +43,9 @@ fi
 echo "primary_table=$BASE"
 echo "secondary_table=$((BASE+1))"
 echo "tproxy_table=$((BASE+2))"
-echo "tproxy_mark=0x${MARK_PREFIX}01"
-echo "bypass_mark=0x${MARK_PREFIX}02"
-echo "policy_mark=0x${MARK_PREFIX}03"
+echo "tproxy_mark=0x${MARK_PREFIX}02"
+echo "bypass_mark=0x${MARK_PREFIX}04"
+echo "policy_mark=0x${MARK_PREFIX}06"
 echo "primary_priority=$PRIORITY"
 echo "secondary_priority=$((PRIORITY+1))"
 echo "tproxy_priority=$((PRIORITY+2))"

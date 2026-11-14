@@ -10,6 +10,8 @@ cat >"$D/bin/ip" <<'MOCK'
 cat <<OUT
 0: from all lookup local
 98: from all fwmark 0x900 lookup 900
+99: from all fwmark 0x102/0x1ff lookup 101
+100: from all fwmark 0x1/0x1 lookup 10000
 32766: from all lookup main
 32767: from all lookup default
 OUT
@@ -35,7 +37,9 @@ grep -qx 'primary_table=11001' "$D/result"
 grep -qx 'primary_priority=101' "$D/result"
 grep -qx 'secondary_priority=102' "$D/result"
 grep -qx 'tproxy_priority=103' "$D/result"
-grep -qx 'tproxy_mark=0x4A01' "$D/result"
+grep -qx 'tproxy_mark=0x4A02' "$D/result"
+grep -qx 'bypass_mark=0x4A04' "$D/result"
+grep -qx 'policy_mark=0x4A06' "$D/result"
 grep -qx 'dns_port=12000' "$D/result"
 
 echo ALLOCATE_DYNAMIC_PRIORITY_6_CHECKS_OK
