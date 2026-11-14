@@ -128,13 +128,9 @@ case "$MODE" in
   [ "$ALLOCATED" = 1 ] || { echo ERROR=not_allocated; exit 6; }
   validate_config || exit 7
   generate_plan || { echo ERROR=plan_generation_failed; exit 10; }
-  : ERROR=validation_failed_snapshot_restored
   echo ERROR=apply_not_implemented
   exit 8
-  snapshot
-  run_plan || { rollback; echo ERROR=plan_apply_failed_snapshot_restored; exit 11; }
-  validate_routes || { rollback; echo ERROR=validation_failed_snapshot_restored; exit 12; }
-  echo ROUTING_APPLY_OK
+  apply_transaction
  ;;
  *) echo ERROR=invalid_mode; exit 1;;
 esac
