@@ -92,11 +92,16 @@ restore_snapshot(){
  ip route flush table "$TT" 2>/dev/null || true
 }
 rollback(){ restore_snapshot && "$RESTORE" "$SNAP" "$PT" "$ST" "$TT" "$BP" "$PP" "$TP"; }
-apply_transaction(){
+apply_transaction(){ MODE_OUT="${1:-normal}";
  snapshot || { echo ERROR=snapshot_failed; return 14; }
  run_plan || { rollback || { echo ERROR=rollback_failed; return 13; }; echo ERROR=plan_apply_failed_snapshot_restored; return 11; }
  validate_routes || { rollback || { echo ERROR=rollback_failed; return 13; }; echo ERROR=validation_failed_snapshot_restored; return 12; }
- echo ROUTING_APPLY_OK
+ [ "$MODE_OUT" = quiet ] || echo ROUTING_APPLY_OK
+}
+persist_applied(){
+ uci -c "$CFG" set mptcp_suite.routing.applied=1 || return 1
+ [ "$(uci -c "$CFG" -q get mptcp_suite.routing.applied)" = 1 ] || return 1
+ uci -c "$CFG" commit mptcp_suite || return 1
 }
 case "$MODE" in
  --test-transaction)
@@ -130,7 +135,14 @@ case "$MODE" in
   [ "$ALLOCATED" = 1 ] || { echo ERROR=not_allocated; exit 6; }
   validate_config || exit 7
   generate_plan || { echo ERROR=plan_generation_failed; exit 10; }
-  apply_transaction
+  apply_transaction quiet || exit $?
+  if ! persist_applied; then
+   uci -c "$CFG" revert mptcp_suite 2>/dev/null || true
+   rollback || { echo ERROR=rollback_failed; exit 13; }
+   echo ERROR=state_commit_failed_snapshot_restored
+   exit 15
+  fi
+  echo ROUTING_APPLY_OK
  ;;
  *) echo ERROR=invalid_mode; exit 1;;
 esac
