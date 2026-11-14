@@ -102,3 +102,7 @@ sed -i "s/*.bypass_mark) echo 0x4A03/*.bypass_mark) echo 0x102/" "$U"
 set +e; OUT="$(PATH="$D/bin:$PATH" MPTCP_ROUTING_APPLY=1 MPTCP_PAUSED_FILE="$D/paused" "$E" --apply 2>&1)"; RC=$?; set -e
 [ "$RC" -eq 7 ]; [ "$OUT" = ERROR=invalid_mark ]
 echo ROUTING_EXEC_LEGACY_MARK_REJECT_OK
+sed -i "s/*.bypass_mark) echo 0x102/*.bypass_mark) echo x123/" "$U"
+set +e; OUT="$(PATH="$D/bin:$PATH" MPTCP_ROUTING_APPLY=1 MPTCP_PAUSED_FILE="$D/paused" "$E" --apply 2>&1)"; RC=$?; set -e
+[ "$RC" -eq 7 ]; [ "$OUT" = ERROR=invalid_mark ]
+echo ROUTING_EXEC_INVALID_MARK_FORMAT_OK

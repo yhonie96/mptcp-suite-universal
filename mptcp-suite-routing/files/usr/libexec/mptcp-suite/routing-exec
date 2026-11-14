@@ -11,6 +11,9 @@ LOCK=/tmp/mptcp-routing.lock
 SNAP=/tmp/mptcp-routing.snapshot
 exec 9>"$LOCK"
 flock -n 9 || { echo ERROR=locked; exit 2; }
+mark_valid(){ printf "%s\n" "$1" | grep -Eq '^0x[0-9A-Fa-f]{1,8}$'; }
+reserved_mark(){ case "$1" in 0x1|0x2|0x102) return 0;; *) return 1;; esac; }
+reserved_mark(){ case "$1" in 0x1|0x2|0x102) return 0;; *) return 1;; esac; }
 validate_config(){
  [ -n "$PT" ] && [ -n "$ST" ] && [ -n "$TT" ] || { echo ERROR=incomplete_configuration; return 1; }
  case "$PT:$ST:$TT" in *[!0-9:]*) echo ERROR=incomplete_configuration; return 1;; esac
@@ -22,7 +25,13 @@ validate_config(){
  [ "$BP" -ge 1 ] && [ "$BP" -le 32765 ] && [ "$PP" -ge 1 ] && [ "$PP" -le 32765 ] && [ "$TP" -ge 1 ] && [ "$TP" -le 32765 ] || { echo ERROR=priority_range; return 1; }
  [ -n "$BM" ] && [ -n "$PM" ] && [ -n "$TM" ] || { echo ERROR=incomplete_marks; return 1; }
  case "$BM:$PM:$TM" in *[!0-9A-Fa-fx:]*|*x*X*) echo ERROR=invalid_mark; return 1;; esac
- case "$BM:$PM:$TM" in 0x1:*|*:0x1:*|*:0x1|0x2:*|*:0x2:*|*:0x2|0x102:*|*:0x102:*|*:0x102) echo ERROR=invalid_mark; return 1;; esac
+ mark_valid "$BM" && mark_valid "$PM" && mark_valid "$TM" || { echo ERROR=invalid_mark; return 1; }
+ reserved_mark "$BM" && { echo ERROR=invalid_mark; return 1; }
+ reserved_mark "$PM" && { echo ERROR=invalid_mark; return 1; }
+ reserved_mark "$TM" && { echo ERROR=invalid_mark; return 1; }
+ reserved_mark "$BM" && { echo ERROR=invalid_mark; return 1; }
+ reserved_mark "$PM" && { echo ERROR=invalid_mark; return 1; }
+ reserved_mark "$TM" && { echo ERROR=invalid_mark; return 1; }
  [ "$BM" != "$PM" ] && [ "$BM" != "$TM" ] && [ "$PM" != "$TM" ] || { echo ERROR=duplicate_marks; return 1; }
 }
 generate_plan(){

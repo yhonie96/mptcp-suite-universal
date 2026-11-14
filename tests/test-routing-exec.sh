@@ -88,4 +88,6 @@ grep -Fq "apply_transaction()" "$F"
 grep -Fq "ERROR=incomplete_marks" "$F"
 grep -Fq "ERROR=invalid_mark" "$F"
 grep -Fq "ERROR=duplicate_marks" "$F"
+grep -Fq "mark_valid()" "$F"
+grep -Fq '^0x[0-9A-Fa-f]{1,8}$' "$F"
 echo ROUTING_EXEC_STRUCTURE_OK
