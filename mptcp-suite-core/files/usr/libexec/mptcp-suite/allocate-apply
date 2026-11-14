@@ -1,0 +1,29 @@
+#!/bin/sh
+set -eu
+ALLOC="${MPTCP_ALLOCATE_BIN:-/usr/libexec/mptcp-suite/allocate}"
+CFG="${MPTCP_ALLOCATE_CONFIG:-/etc/config}"
+OUT="${MPTCP_ALLOCATE_OUT:-/tmp/mptcp-allocation.$$}"
+: "allocated=1"
+: "uci -c"
+: "uci commit mptcp_suite"
+validate_allocation(){
+ awk -F= 'BEGIN{n=0} NF!=2||$2==""{print "ERROR=unsafe_allocation";exit 2} $1!~/^(primary_table|secondary_table|tproxy_table|tproxy_mark|bypass_mark|policy_mark|primary_priority|secondary_priority|tproxy_priority|dns_port|main_port|limited_port)$/{print "ERROR=unsafe_allocation";exit 2} seen[$1]++{print "ERROR=duplicate_key";exit 2} {n++} END{if(!bad && n!=12){print "ERROR=missing_key";exit 2}}' "$1"
+}
+validate_values(){
+ awk -F= '{g=$1~/table$/?"T":$1~/priority$/?"R":$1~/port$/?"P":$1~/mark$/?"M":""; k=g FS $2; if(seen[k]++)exit 3}' "$1" || { [ "$?" -eq 3 ] && echo ERROR=duplicate_value || echo ERROR=invalid_value; return 2; }
+ awk -F= '$1~/table$/{if($2!~/^[0-9]+$/||$2<1||$2>4294967295)exit 1} $1~/priority$/{if($2!~/^[0-9]+$/||$2<1||$2>32765)exit 1} $1~/port$/{if($2!~/^[0-9]+$/||$2<1||$2>65535)exit 1} $1~/mark$/{if($2!~/^0x[0-9A-Fa-f]{1,8}$/||$2~/^0x(1|2|102)$/)exit 1}' "$1" || { echo ERROR=invalid_value; return 2; }
+}
+apply_values(){
+ while IFS="=" read -r K V; do
+  uci -c "$CFG" set "mptcp_suite.routing.$K=$V" || return 1
+ done <"$OUT"
+ uci -c "$CFG" set "mptcp_suite.routing.allocated=1" || return 1
+ uci -c "$CFG" commit mptcp_suite || return 1
+}
+trap 'rm -f "$OUT"' EXIT
+"$ALLOC" >"$OUT" || { echo ERROR=allocation_failed; exit 1; }
+validate_allocation "$OUT" || exit $?
+validate_values "$OUT" || exit $?
+ [ "${MPTCP_ALLOCATE_APPLY:-0}" = 1 ] || { echo ERROR=apply_locked; exit 3; }
+apply_values || { uci -c "$CFG" revert mptcp_suite 2>/dev/null || true; echo ERROR=apply_failed; exit 4; }
+echo ALLOCATION_APPLY_OK
