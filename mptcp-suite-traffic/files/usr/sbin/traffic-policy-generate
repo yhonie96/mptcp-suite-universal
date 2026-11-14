@@ -3,7 +3,7 @@ set -e
 . /lib/functions.sh
 
 LAN_DEV="$(uci -q get network.lan.device)"
-APPLIED="$(uci -q get mptcp_suite.routing.applied)"
+APPLIED="$(uci -q get mptcp_suite.routing.applied || true)"
 MARK=""
 [ "$APPLIED" = 1 ] && MARK="$(uci -q get mptcp_suite.routing.policy_mark)"
 MARK="${MARK:-$(uci -q get traffic_policy.main.mark_wwan)}"
