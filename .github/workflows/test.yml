@@ -62,7 +62,7 @@ jobs:
           install -m 755 "$P/files/etc/init.d/mptcp-suite-core" "$ROOT/etc/init.d/"
           install -m 755 "$P"/files/usr/libexec/mptcp-suite/* "$ROOT/usr/libexec/mptcp-suite/"
 
-          test "$(find "$ROOT" -type f | wc -l)" -eq 7
+          test "$(find "$ROOT" -type f | wc -l)" -eq 8
           test "$(stat -c %a "$ROOT/etc/config/mptcp_suite")" = 600
           test "$(stat -c %a "$ROOT/etc/init.d/mptcp-suite-core")" = 755
           sh -n "$ROOT/etc/init.d/mptcp-suite-core"
