@@ -1,0 +1,65 @@
+#!/bin/sh
+set -eu
+
+ASSET="${XRAY_GEODATA_ASSET:-/usr/share/xray}"
+TMP="${XRAY_GEODATA_TMP:-/tmp/xray-geodata-update}"
+BASE="${XRAY_GEODATA_BASE:-https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download}"
+LOG="${XRAY_GEODATA_LOG:-/tmp/xray-geodata-update.log}"
+CURL="${XRAY_GEODATA_CURL:-curl}"
+XRAY="${XRAY_GEODATA_XRAY:-xray}"
+CONFIGS="${XRAY_GEODATA_CONFIGS:-/etc/xray-dns/config.json /etc/xray/config.json /etc/xray-5mbps/config.json}"
+SERVICES="${XRAY_GEODATA_SERVICES:-/etc/init.d/xray-dns /etc/init.d/xray /etc/init.d/xray-5mbps}"
+MODE="${XRAY_GEODATA_MODE:-dry-run}"
+
+exec >>"$LOG" 2>&1
+echo "=== $(date) ==="
+
+[ "$MODE" = apply ] || { echo GEODATA_DRY_RUN; exit 0; }
+mkdir -p "$ASSET" "$TMP"
+rm -f "$TMP"/*
+
+rollback() {
+ rc="${1:-1}"
+ echo GEODATA_ROLLBACK
+ for f in geoip.dat geosite.dat; do
+  if [ -f "$TMP/old.$f" ]; then
+   cp -p "$TMP/old.$f" "$ASSET/$f"
+  else
+   rm -f "$ASSET/$f"
+  fi
+ done
+ for svc in $SERVICES; do
+  [ -x "$svc" ] && "$svc" restart >/dev/null 2>&1 || true
+ done
+ exit "$rc"
+}
+trap 'rollback 130' INT TERM
+
+for f in geoip.dat geosite.dat; do
+ "$CURL" -fL -o "$TMP/$f" "$BASE/$f" || { echo "ERROR=download:$f"; exit 1; }
+ "$CURL" -fL -o "$TMP/$f.sha256sum" "$BASE/$f.sha256sum" || { echo "ERROR=checksum_download:$f"; exit 1; }
+ expected="$(awk 'NR==1{print $1}' "$TMP/$f.sha256sum")"
+ actual="$(sha256sum "$TMP/$f" | awk '{print $1}')"
+ [ -n "$expected" ] && [ "$expected" = "$actual" ] && [ -s "$TMP/$f" ] || { echo "ERROR=checksum:$f"; exit 2; }
+ [ ! -f "$ASSET/$f" ] || cp -p "$ASSET/$f" "$TMP/old.$f"
+done
+
+cp -p "$TMP/geoip.dat" "$ASSET/geoip.dat.new"
+cp -p "$TMP/geosite.dat" "$ASSET/geosite.dat.new"
+mv "$ASSET/geoip.dat.new" "$ASSET/geoip.dat"
+mv "$ASSET/geosite.dat.new" "$ASSET/geosite.dat"
+export XRAY_LOCATION_ASSET="$ASSET"
+
+for cfg in $CONFIGS; do
+ [ -s "$cfg" ] || { echo "ERROR=missing_config:$cfg"; rollback 3; }
+ "$XRAY" run -test -config="$cfg" -format=json >/dev/null 2>&1 || { echo "ERROR=invalid_config:$cfg"; rollback 4; }
+done
+
+for svc in $SERVICES; do
+ [ -x "$svc" ] || { echo "ERROR=missing_service:$svc"; rollback 5; }
+ "$svc" restart >/dev/null 2>&1 || { echo "ERROR=restart:$svc"; rollback 6; }
+ "$svc" status 2>/dev/null | grep -qx running || { echo "ERROR=not_running:$svc"; rollback 7; }
+done
+
+rm -f "$TMP"/old.geoip.dat "$TMP"/old.geosite.dat
+echo GEODATA_UPDATE_OK

@@ -1,0 +1,9 @@
+#!/bin/sh /etc/rc.common
+USE_PROCD=1
+START=94
+start_service() {
+ procd_open_instance
+ procd_set_param command /usr/bin/xray run -config /etc/xray-dns/config.json -format json
+ procd_set_param respawn
+ procd_close_instance
+}

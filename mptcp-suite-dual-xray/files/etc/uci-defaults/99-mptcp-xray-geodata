@@ -1,0 +1,53 @@
+#!/bin/sh
+set -eu
+
+UCI_BIN="${MPTCP_DNS_UCI:-uci}"
+UCI_DIR="${MPTCP_DNS_UCI_DIR:-/etc/config}"
+DHCP_FILE="$UCI_DIR/dhcp"
+CRON_FILE="${MPTCP_DNS_CRON_FILE:-/etc/crontabs/root}"
+XRAY_DNS="${MPTCP_DNS_XRAY_SERVICE:-/etc/init.d/xray-dns}"
+DNSMASQ="${MPTCP_DNS_DNSMASQ_SERVICE:-/etc/init.d/dnsmasq}"
+CRON="${MPTCP_DNS_CRON_SERVICE:-/etc/init.d/cron}"
+NSLOOKUP="${MPTCP_DNS_NSLOOKUP:-nslookup}"
+BACKUP="${MPTCP_DNS_BACKUP:-/tmp/mptcp-dhcp-before-xray-dns.$$}"
+LINE='17 4 * * * XRAY_GEODATA_MODE=apply /usr/bin/update-xray-geodata'
+
+mkdir -p "${CRON_FILE%/*}"
+touch "$CRON_FILE"
+CRON_ADDED=0
+grep -Fqx "$LINE" "$CRON_FILE" || { echo "$LINE" >>"$CRON_FILE"; CRON_ADDED=1; }
+WAS_ENABLED=0
+"$XRAY_DNS" enabled >/dev/null 2>&1 && WAS_ENABLED=1 || true
+
+[ -f "$DHCP_FILE" ] || { echo ERROR=missing_dhcp; exit 1; }
+cp -p "$DHCP_FILE" "$BACKUP"
+rollback() {
+ cp -p "$BACKUP" "$DHCP_FILE"
+ if [ "$CRON_ADDED" -eq 1 ]; then
+  awk -v line="$LINE" '$0 != line' "$CRON_FILE" >"$CRON_FILE.tmp"
+  mv "$CRON_FILE.tmp" "$CRON_FILE"
+ fi
+ [ "$WAS_ENABLED" -eq 1 ] || "$XRAY_DNS" disable >/dev/null 2>&1 || true
+ "$DNSMASQ" restart >/dev/null 2>&1 || true
+ "$CRON" restart >/dev/null 2>&1 || true
+ rm -f "$BACKUP"
+ echo DNS_INSTALL_ROLLBACK
+ exit 1
+}
+trap rollback INT TERM
+
+"$UCI_BIN" -c "$UCI_DIR" set dhcp.@dnsmasq[0].noresolv=1
+"$UCI_BIN" -c "$UCI_DIR" -q get dhcp.@dnsmasq[0].server | grep -Eq "(^| )127\\.0\\.0\\.1#1053($| )" ||
+ "$UCI_BIN" -c "$UCI_DIR" add_list dhcp.@dnsmasq[0].server="127.0.0.1#1053"
+"$UCI_BIN" -c "$UCI_DIR" commit dhcp
+
+"$XRAY_DNS" enable >/dev/null 2>&1 || true
+"$XRAY_DNS" restart >/dev/null 2>&1 || rollback
+"$XRAY_DNS" status 2>/dev/null | grep -qx running || rollback
+"$DNSMASQ" restart >/dev/null 2>&1 || rollback
+"$NSLOOKUP" example.com 127.0.0.1 >/dev/null 2>&1 || rollback
+"$CRON" restart >/dev/null 2>&1 || true
+
+rm -f "$BACKUP"
+echo XRAY_DNS_INSTALL_OK
+exit 0

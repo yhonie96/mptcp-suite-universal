@@ -1,0 +1,50 @@
+{
+  "log": {
+    "loglevel": "warning"
+  },
+  "dns": {
+    "servers": [
+      {
+        "address": "https://1.1.1.1/dns-query",
+        "skipFallback": true
+      }
+    ],
+    "hosts": {
+      "geosite:category-ads-all": "#3"
+    }
+  },
+  "inbounds": [
+    {
+      "tag": "dns-in",
+      "listen": "127.0.0.1",
+      "port": 1053,
+      "protocol": "dokodemo-door",
+      "settings": {
+        "address": "1.1.1.1",
+        "port": 53,
+        "network": "tcp,udp"
+      }
+    }
+  ],
+  "routing": {
+    "rules": [
+      {
+        "type": "field",
+        "inboundTag": [
+          "dns-in"
+        ],
+        "outboundTag": "dns-out"
+      }
+    ]
+  },
+  "outbounds": [
+    {
+      "tag": "direct",
+      "protocol": "freedom"
+    },
+    {
+      "tag": "dns-out",
+      "protocol": "dns"
+    }
+  ]
+}
