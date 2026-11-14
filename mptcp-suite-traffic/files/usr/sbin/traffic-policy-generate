@@ -3,7 +3,9 @@ set -e
 . /lib/functions.sh
 
 LAN_DEV="$(uci -q get network.lan.device)"
-MARK="$(uci -q get mptcp_suite.routing.policy_mark)"
+APPLIED="$(uci -q get mptcp_suite.routing.applied)"
+MARK=""
+[ "$APPLIED" = 1 ] && MARK="$(uci -q get mptcp_suite.routing.policy_mark)"
 MARK="${MARK:-$(uci -q get traffic_policy.main.mark_wwan)}"
 [ -n "$LAN_DEV" ] && [ -n "$MARK" ] || { echo ERROR=missing_lan_or_mark; exit 1; }
 OUT="${1:-/tmp/traffic-policy-test.nft}"
