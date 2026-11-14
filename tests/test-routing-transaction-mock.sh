@@ -76,3 +76,13 @@ set +e; OUT="$(MPTCP_ROUTING_TEST=1 MPTCP_ROUTING_PLAN_FILE="$P" "$E" --test-tra
 test ! -e /tmp/mptcp-routing.snapshot
 ! grep -Fq "route replace" "$LOG"
 echo ROUTING_TRANSACTION_SNAPSHOT_FAILURE_OK
+: >"$LOG"
+export MOCK_IP_MISSING="route show table 11002"
+set +e
+OUT="$(MPTCP_ROUTING_TEST=1 MPTCP_ROUTING_PLAN_FILE="$P" "$E" --test-transaction 2>&1)"
+RC=$?
+set -e
+unset MOCK_IP_MISSING
+[ "$RC" -eq 0 ]
+[ "$OUT" = ROUTING_APPLY_OK ]
+echo ROUTING_TRANSACTION_EMPTY_TABLE_OK

@@ -66,15 +66,21 @@ validate_routes(){
  echo "$R3" | grep -Fq "table $TT" || return 1
 }
 
+snapshot_table(){
+ O="$SNAP.route.$$"; E="$SNAP.err.$$"
+ if ip route show table "$1" >"$O" 2>"$E"; then cat "$O"; rm -f "$O" "$E"; return 0; fi
+ if grep -Fq "FIB table does not exist" "$E"; then rm -f "$O" "$E"; return 0; fi
+ cat "$E" >&2; rm -f "$O" "$E"; return 1
+}
 snapshot(){
  TMP="$SNAP.tmp"; rm -f "$TMP"
  {
   echo TABLE_PRIMARY
-  ip route show table "$PT" || return 1
+  snapshot_table "$PT" || return 1
   echo TABLE_SECONDARY
-  ip route show table "$ST" || return 1
+  snapshot_table "$ST" || return 1
   echo TABLE_TPROXY
-  ip route show table "$TT" || return 1
+  snapshot_table "$TT" || return 1
   echo RULES
   ip rule show | grep -E "^($BP|$PP|$TP):" || true
  } >"$TMP" || { rm -f "$TMP"; return 1; }

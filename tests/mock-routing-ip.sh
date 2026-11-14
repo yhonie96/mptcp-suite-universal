@@ -1,5 +1,6 @@
 #!/bin/sh
 [ "${MOCK_IP_FAIL:-}" = "$*" ] && exit 1
+[ "${MOCK_IP_MISSING:-}" = "$*" ] && { echo "Error: ipv4: FIB table does not exist." >&2; echo "Dump terminated" >&2; exit 2; }
 [ "${MOCK_BAD_ROUTE:-0}" = 1 ] && [ "$*" = "route get 8.8.8.8 mark 0x4A01" ] && { echo "8.8.8.8 dev lo table 99999"; exit 0; }
 echo "$*" >>"$LOG"
 case "$*" in
