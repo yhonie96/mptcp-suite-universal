@@ -13,12 +13,19 @@ validate_values(){
  awk -F= '{g=$1~/table$/?"T":$1~/priority$/?"R":$1~/port$/?"P":$1~/mark$/?"M":""; k=g FS $2; if(seen[k]++)exit 3}' "$1" || { [ "$?" -eq 3 ] && echo ERROR=duplicate_value || echo ERROR=invalid_value; return 2; }
  awk -F= '$1~/table$/{if($2!~/^[0-9]+$/||$2<1||$2>4294967295)exit 1} $1~/priority$/{if($2!~/^[0-9]+$/||$2<1||$2>32765)exit 1} $1~/port$/{if($2!~/^[0-9]+$/||$2<1||$2>65535)exit 1} $1~/mark$/{if($2!~/^0x[0-9A-Fa-f]{1,8}$/||$2~/^0x(1|2|102)$/)exit 1}' "$1" || { echo ERROR=invalid_value; return 2; }
 }
+verify_values(){
+ while IFS="=" read -r K V; do
+  A="$(uci -c "$CFG" -q get "mptcp_suite.routing.$K")" || return 1
+  [ "$A" = "$V" ] || return 1
+ done <"$OUT"
+ [ "$(uci -c "$CFG" -q get mptcp_suite.routing.allocated)" = 1 ] || return 1
+}
+: "ERROR=verify_failed"
 apply_values(){
  while IFS="=" read -r K V; do
   uci -c "$CFG" set "mptcp_suite.routing.$K=$V" || return 1
  done <"$OUT"
  uci -c "$CFG" set "mptcp_suite.routing.allocated=1" || return 1
- uci -c "$CFG" commit mptcp_suite || return 1
 }
 trap 'rm -f "$OUT"' EXIT
 "$ALLOC" >"$OUT" || { echo ERROR=allocation_failed; exit 1; }
@@ -26,4 +33,6 @@ validate_allocation "$OUT" || exit $?
 validate_values "$OUT" || exit $?
  [ "${MPTCP_ALLOCATE_APPLY:-0}" = 1 ] || { echo ERROR=apply_locked; exit 3; }
 apply_values || { uci -c "$CFG" revert mptcp_suite 2>/dev/null || true; echo ERROR=apply_failed; exit 4; }
+verify_values || { uci -c "$CFG" revert mptcp_suite 2>/dev/null || true; echo ERROR=verify_failed; exit 5; }
+uci -c "$CFG" commit mptcp_suite || { uci -c "$CFG" revert mptcp_suite 2>/dev/null || true; echo ERROR=commit_failed; exit 6; }
 echo ALLOCATION_APPLY_OK

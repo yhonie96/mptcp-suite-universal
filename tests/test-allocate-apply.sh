@@ -30,12 +30,9 @@ DATA
 OUT
 chmod 755 "$D/alloc"
 LOG="$D/uci.log"; export LOG
-cat >"$D/bin/uci" <<'MOCK'
-#!/bin/sh
-echo "$*" >>"$LOG"
-[ "${UCI_FAIL:-}" = "$*" ] && exit 1
-exit 0
-MOCK
+cp tests/mock-allocate-uci.sh "$D/bin/uci"
+STATE="$D/uci.state"; export STATE
+: >"$STATE"
 chmod 755 "$D/bin/uci"
 export PATH="$D/bin:$PATH"
 set +e
@@ -95,9 +92,13 @@ sed -i "/^DATA/i limited_port=12002" "$D/alloc"
 : >"$LOG"
 OUT="$(MPTCP_ALLOCATE_APPLY=1 MPTCP_ALLOCATE_BIN="$D/alloc" MPTCP_ALLOCATE_CONFIG="$D/cfg" "$F")"
 [ "$OUT" = ALLOCATION_APPLY_OK ]
-[ "$(wc -l < "$LOG")" -eq 14 ]
-[ "$(tail -n 2 "$LOG" | head -n 1)" = "-c $D/cfg set mptcp_suite.routing.allocated=1" ]
+[ "$(wc -l < "$LOG")" -eq 27 ]
 [ "$(tail -n 1 "$LOG")" = "-c $D/cfg commit mptcp_suite" ]
+! grep -Fq "mptcp_suite.routing=resources" "$LOG"
+grep -Fq "set mptcp_suite.routing.policy_mark=0x4A03" "$LOG"
+grep -Fq "set mptcp_suite.routing.allocated=1" "$LOG"
+grep -Fq "verify_values()" "$F"
+grep -Fq "ERROR=verify_failed" "$F"
 echo ALLOCATE_APPLY_MOCK_OK
 sed -i "/^limited_port=12002$/d" "$D/alloc"
 sed -i "/^DATA/i limited_port=12002" "$D/alloc"
@@ -107,3 +108,8 @@ set +e; OUT="$(MPTCP_ALLOCATE_APPLY=1 MPTCP_ALLOCATE_BIN="$D/alloc" MPTCP_ALLOCA
 grep -Fq "revert mptcp_suite" "$LOG"
 ! grep -Fq "allocated=1" "$LOG"; ! grep -Fq "commit mptcp_suite" "$LOG"
 echo ALLOCATE_APPLY_ROLLBACK_OK
+: >"$LOG"; : >"$STATE"; export UCI_BAD_GET="-c $D/cfg -q get mptcp_suite.routing.policy_mark"
+set +e; OUT="$(MPTCP_ALLOCATE_APPLY=1 MPTCP_ALLOCATE_BIN="$D/alloc" MPTCP_ALLOCATE_CONFIG="$D/cfg" "$F" 2>&1)"; RC=$?; set -e; unset UCI_BAD_GET
+[ "$RC" -eq 5 ]; [ "$OUT" = ERROR=verify_failed ]
+grep -Fq "revert mptcp_suite" "$LOG"; ! grep -Fq "commit mptcp_suite" "$LOG"
+echo ALLOCATE_VERIFY_ROLLBACK_OK
