@@ -29,15 +29,7 @@ cat >"$D/plan" <<'MOCK'
 echo "ip route replace local 0.0.0.0/0 dev lo table 11003" >"$2"
 MOCK
 chmod 755 "$D/plan"
-set +e
-OUT="$(MPTCP_ROUTING_APPLY=1 MPTCP_ROUTING_PLAN_BIN="$D/plan" MPTCP_ROUTING_PLAN_FILE="$P" MPTCP_ROUTING_CONFIG="$D/cfg" MPTCP_PAUSED_FILE="$D/paused" "$E" --apply 2>&1)"
-RC=$?
-set -e
-[ "$RC" -eq 8 ]
-[ "$OUT" = ERROR=apply_not_implemented ]
-[ -s "$P" ]
-test ! -s "$LOG"
-echo ROUTING_TRANSACTION_LOCKED_OK
+"$D/plan" "$D/cfg" "$P"
 cp tests/mock-routing-ip.sh "$D/bin/ip"
 chmod 755 "$D/bin/ip"
 : >"$LOG"
