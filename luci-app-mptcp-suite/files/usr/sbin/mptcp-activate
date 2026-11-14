@@ -39,7 +39,7 @@ while IFS="$(printf '\t')" read -r id cfg svc vt ft tunnel; do
 done <"$MANIFEST"
 rm -f "$PAUSED"
 STAGE=routing
-MPTCP_ROUTING_SNAPSHOT="$SNAP" "$ROUTING" --apply >/dev/null 2>&1 || rollback
+MPTCP_ROUTING_APPLY=1 MPTCP_ROUTING_SNAPSHOT="$SNAP" "$ROUTING" --apply >/tmp/mptcp-routing-apply.log 2>&1 || rollback
 STAGE=tunnel
 while IFS="$(printf '\t')" read -r id cfg svc vt ft tunnel; do
  [ -n "$id" ] || continue

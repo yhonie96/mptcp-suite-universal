@@ -6,3 +6,6 @@ for X in MPTCP_ACTIVATE_DRY_RUN MPTCP_ACTIVATE_OK MPTCP_ACTIVATE_ROLLBACK MPTCP_
 for X in precheck snapshot_direct routing tunnel profile_restart reconnect sync validate; do grep -Fq "STAGE=$X" "$F"; done
 ! grep -Fq 'rm -f "$PAUSED"' "$F" || true
 echo MPTCP_ACTIVATE_STRUCTURE_OK
+
+grep -Fq 'MPTCP_ROUTING_APPLY=1' "$F"
+grep -Fq 'mptcp-routing-apply.log' "$F"
