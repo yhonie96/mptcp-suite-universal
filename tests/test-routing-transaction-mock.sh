@@ -27,6 +27,9 @@ export PATH="$D/bin:$PATH"
 cat >"$D/plan" <<'MOCK'
 #!/bin/sh
 echo "ip route replace local 0.0.0.0/0 dev lo table 11003" >"$2"
+echo "ip rule add priority 98 fwmark 0x4A02 lookup 11001" >>"$2"
+echo "ip rule add priority 99 fwmark 0x4A03 lookup 11002" >>"$2"
+echo "ip rule add priority 100 fwmark 0x4A01 lookup 11003" >>"$2"
 MOCK
 chmod 755 "$D/plan"
 "$D/plan" "$D/cfg" "$P"
@@ -37,6 +40,10 @@ MPTCP_ROUTING_TEST=1 MPTCP_ROUTING_PLAN_FILE="$P" "$E" --test-transaction >"$D/o
 grep -Fq ROUTING_APPLY_OK "$D/out"
 grep -Fq "route show table 11001" "$LOG"
 grep -Fq "route get 8.8.8.8 mark 0x4A01" "$LOG"
+! grep -Eq "[[:space:]]$" /tmp/mptcp-routing.snapshot
+DL="$(grep -n "rule del priority 98" "$LOG" | head -n1 | cut -d: -f1)"
+AL="$(grep -n "rule add priority 98" "$LOG" | head -n1 | cut -d: -f1)"
+[ -n "$DL" ] && [ -n "$AL" ] && [ "$DL" -lt "$AL" ]
 echo ROUTING_TRANSACTION_SUCCESS_OK
 : >"$LOG"
 printf '#!/bin/sh
@@ -75,6 +82,7 @@ set +e; OUT="$(MPTCP_ROUTING_TEST=1 MPTCP_ROUTING_PLAN_FILE="$P" "$E" --test-tra
 [ "$OUT" = ERROR=snapshot_failed ]
 test ! -e /tmp/mptcp-routing.snapshot
 ! grep -Fq "route replace" "$LOG"
+! grep -Fq "rule del priority" "$LOG"
 echo ROUTING_TRANSACTION_SNAPSHOT_FAILURE_OK
 : >"$LOG"
 export MOCK_IP_MISSING="route show table 11002"

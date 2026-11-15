@@ -80,7 +80,15 @@ snapshot(){
   echo RULES
   ip rule show | grep -E "^($BP|$PP|$TP):" || true
  } >"$TMP" || { rm -f "$TMP"; return 1; }
+ N="$TMP.norm"
+ awk '{$1=$1;print}' "$TMP" >"$N" || { rm -f "$TMP" "$N"; return 1; }
+ mv "$N" "$TMP"
  mv "$TMP" "$SNAP"
+}
+clear_managed_rules(){
+ ip rule del priority "$BP" 2>/dev/null || true
+ ip rule del priority "$PP" 2>/dev/null || true
+ ip rule del priority "$TP" 2>/dev/null || true
 }
 restore_snapshot(){
  [ -s "$SNAP" ] || return 1
@@ -94,6 +102,7 @@ restore_snapshot(){
 rollback(){ restore_snapshot && "$RESTORE" "$SNAP" "$PT" "$ST" "$TT" "$BP" "$PP" "$TP"; }
 apply_transaction(){ MODE_OUT="${1:-normal}";
  snapshot || { echo ERROR=snapshot_failed; return 14; }
+ clear_managed_rules
  run_plan || { rollback || { echo ERROR=rollback_failed; return 13; }; echo ERROR=plan_apply_failed_snapshot_restored; return 11; }
  validate_routes || { rollback || { echo ERROR=rollback_failed; return 13; }; echo ERROR=validation_failed_snapshot_restored; return 12; }
  [ "$MODE_OUT" = quiet ] || echo ROUTING_APPLY_OK
