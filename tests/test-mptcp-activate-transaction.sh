@@ -15,12 +15,12 @@ cat >"$D/bin/step" <<'EOF'
 #!/bin/sh
 name="${0##*/}"; echo "$name $* SNAP=${MPTCP_ROUTING_SNAPSHOT:-}" >>"$MOCK_LOG"
 [ "${MOCK_FAIL:-}" = "$name" ] && exit 1
-case "$name" in curl) printf '%s' "${MOCK_HTTP:-204}";; ip) [ "${2:-}" = endpoint ] && printf 'a\nb\n';; ss) printf 'subflows_total:%s\n' "${MOCK_SF:-2}";; esac
+case "$name" in curl) printf '%s' "${MOCK_HTTP:-204}";; ip) [ "${2:-}" = endpoint ] && [ "${MOCK_EP:-2}" -gt 0 ] && seq 1 "${MOCK_EP:-2}";; ss) printf 'subflows_total:%s\n' "${MOCK_SF:-2}";; esac
 exit 0
 EOF
 for n in precheck routing rollback direct-restore restart reconnect sync curl ip ss xray; do cp "$D/bin/step" "$D/bin/$n"; chmod 755 "$D/bin/$n"; done
 run(){
- env MOCK_LOG="$D/actions" MOCK_FAIL="${MOCK_FAIL:-}" MOCK_HTTP="${MOCK_HTTP:-204}" MOCK_SF="${MOCK_SF:-2}" \
+ env MOCK_LOG="$D/actions" MOCK_FAIL="${MOCK_FAIL:-}" MOCK_HTTP="${MOCK_HTTP:-204}" MOCK_SF="${MOCK_SF:-2}" MOCK_EP="${MOCK_EP:-2}" \
  MPTCP_ACTIVATE_DIR="$D/work" MPTCP_MANIFEST="$D/manifest" MPTCP_PAUSED_FILE="$D/paused" \
  MPTCP_PRECHECK="$D/bin/precheck" MPTCP_ROUTING_EXEC="$D/bin/routing" MPTCP_ROUTING_ROLLBACK="$D/bin/rollback" \
  MPTCP_DIRECT_RESTORE="$D/bin/direct-restore" MPTCP_PROFILE_RESTART="$D/bin/restart" MPTCP_RECONNECT="$D/bin/reconnect" \
@@ -39,7 +39,11 @@ for fail in precheck routing restart reconnect; do
 done
 reset; set +e; out="$(MOCK_HTTP=000 run 2>&1)"; rc=$?; set -e
 [ "$rc" -ne 0 ]; [ -e "$D/paused" ]; echo "$out" | grep -Fq 'stage=validate'
+echo "$out" | grep -Fq "http=000 endpoint=unset subflow=unset"
 echo MPTCP_ACTIVATE_HTTP_ROLLBACK_OK
+reset; set +e; out="$(MOCK_EP=0 run 2>&1)"; rc=$?; set -e
+[ "$rc" -ne 0 ]; echo "$out" | grep -Fq "stage=validate http=204 endpoint=0 subflow=2"
+echo MPTCP_ACTIVATE_ENDPOINT_ROLLBACK_OK
 reset
 out="$(MOCK_SF=1 run)"
 echo "$out" | grep -Fq 'MPTCP_ACTIVATE_OK'

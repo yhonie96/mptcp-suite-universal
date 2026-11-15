@@ -28,7 +28,7 @@ rollback(){
  MPTCP_DIRECT_SNAPSHOT_DIR="$DIR/direct" "$DRESTORE" --apply >/dev/null 2>&1 || true
  MPTCP_ROUTING_SNAPSHOT="$SNAP" "$RBACK" --apply >/dev/null 2>&1 || true
  touch "$PAUSED"
- echo "MPTCP_ACTIVATE_ROLLBACK stage=$STAGE"
+ echo "MPTCP_ACTIVATE_ROLLBACK stage=$STAGE http=${code:-unset} endpoint=${ep:-unset} subflow=${sf:-unset}"
  exit 1
 }
 trap rollback INT TERM
