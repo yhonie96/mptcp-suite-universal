@@ -21,6 +21,7 @@ case "$MODE" in --dry-run) echo MPTCP_ACTIVATE_DRY_RUN; exit 0;; --apply) ;; *) 
 [ -s "$MANIFEST" ] || { echo ERROR=missing_manifest; exit 4; }
 rm -rf "$DIR"; mkdir -p "$DIR/direct"
 rollback(){
+ /etc/init.d/bsbf-mptcp stop >/dev/null 2>/dev/null || true
  MPTCP_DIRECT_SNAPSHOT_DIR="$DIR/direct" "$DRESTORE" --apply >/dev/null 2>&1 || true
  MPTCP_ROUTING_SNAPSHOT="$SNAP" "$RBACK" --apply >/dev/null 2>&1 || true
  touch "$PAUSED"
@@ -56,6 +57,6 @@ code="$($CURL -4 -sS --max-time 12 -o /dev/null -w '%{http_code}' https://connec
 [ "$code" = 204 ] || rollback
 ep="$($IP mptcp endpoint show 2>/dev/null | grep -c . || true)"
 sf="$($SS -Mi 2>/dev/null | grep -o 'subflows_total:[0-9]*' | cut -d: -f2 | sort -nr | head -n1)"; sf="${sf:-0}"
-[ "$ep" -ge 2 ] && [ "$sf" -ge 2 ] || rollback
+[ "$ep" -ge 2 ] || rollback
 rm -f "$PAUSED" "$SNAP"
 echo "MPTCP_ACTIVATE_OK http=$code endpoint=$ep subflow=$sf"

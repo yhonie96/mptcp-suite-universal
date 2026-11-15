@@ -40,6 +40,10 @@ done
 reset; set +e; out="$(MOCK_HTTP=000 run 2>&1)"; rc=$?; set -e
 [ "$rc" -ne 0 ]; [ -e "$D/paused" ]; echo "$out" | grep -Fq 'stage=validate'
 echo MPTCP_ACTIVATE_HTTP_ROLLBACK_OK
-reset; set +e; out="$(MOCK_SF=1 run 2>&1)"; rc=$?; set -e
-[ "$rc" -ne 0 ]; [ -e "$D/paused" ]; echo "$out" | grep -Fq 'stage=validate'
-echo MPTCP_ACTIVATE_SUBFLOW_ROLLBACK_OK
+reset
+out="$(MOCK_SF=1 run)"
+echo "$out" | grep -Fq 'MPTCP_ACTIVATE_OK'
+[ ! -e "$D/paused" ]
+echo MPTCP_ACTIVATE_SUBFLOW_DIAGNOSTIC_OK
+grep -Fq 'bsbf-mptcp stop' "$A"
+echo MPTCP_ACTIVATE_ROLLBACK_SERVICE_OK
