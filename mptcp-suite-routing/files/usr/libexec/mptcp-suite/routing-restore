@@ -5,19 +5,23 @@ BP="${5:-}"; PP="${6:-}"; TP="${7:-}"
 [ -r "$SNAP" ] || { echo ERROR=snapshot_missing; exit 1; }
 case "$PT:$ST:$TT:$BP:$PP:$TP" in *[!0-9:]*) echo ERROR=invalid_arguments; exit 1;; esac
 validate_snapshot(){
- awk 'BEGIN{s=""} /^(TABLE_PRIMARY|TABLE_SECONDARY|TABLE_TPROXY|RULES)$/{s=$0;next} /^default via [0-9.]+ dev [A-Za-z0-9_.:-]+ metric [0-9]+$/{if(s!="TABLE_PRIMARY"&&s!="TABLE_SECONDARY")exit 1;next} /^local default dev lo scope host$/{if(s!="TABLE_TPROXY")exit 1;next} /^[0-9]+: from all fwmark 0x[0-9A-Fa-f]+ lookup [0-9]+$/{if(s!="RULES")exit 1;next} NF{exit 1}' "$SNAP"
+ awk 'BEGIN{s=""} /^(TABLE_PRIMARY|TABLE_SECONDARY|TABLE_TPROXY|RULES)$/{s=$0;next} /^default via [0-9.]+ dev [A-Za-z0-9_.:-]+( metric [0-9]+)?$/{if(s!="TABLE_PRIMARY"&&s!="TABLE_SECONDARY")exit 1;next} /^local default dev lo scope host$/{if(s!="TABLE_TPROXY")exit 1;next} /^[0-9]+: from all fwmark 0x[0-9A-Fa-f]+ lookup [0-9]+$/{if(s!="RULES")exit 1;next} NF{exit 1}' "$SNAP"
 }
 restore_route(){
  LINE="$1"; TABLE="$2"
  set -- $LINE
- [ "$1" = default ] && [ "$2" = via ] && [ "$4" = dev ] &&
- [ "$6" = metric ] && [ "$#" -eq 7 ] || {
-  echo ERROR=unsafe_snapshot; return 2
- }
- case "$3:$5:$7" in *[!0-9.A-Za-z_:-]*)
-  echo ERROR=unsafe_snapshot; return 2;;
+ [ "$1" = default ] && [ "$2" = via ] && [ "$4" = dev ] || { echo ERROR=unsafe_snapshot; return 2; }
+ case "$#" in
+  5) GW="$3"; DEV="$5"; METRIC= ;;
+  7) [ "$6" = metric ] || { echo ERROR=unsafe_snapshot; return 2; }; GW="$3"; DEV="$5"; METRIC="$7" ;;
+  *) echo ERROR=unsafe_snapshot; return 2 ;;
  esac
- ip route replace default via "$3" dev "$5" table "$TABLE" metric "$7"
+ case "$GW:$DEV:${METRIC:-0}" in *[!0-9.A-Za-z_:-]*) echo ERROR=unsafe_snapshot; return 2;; esac
+ if [ -n "$METRIC" ]; then
+  ip route replace default via "$GW" dev "$DEV" table "$TABLE" metric "$METRIC"
+ else
+  ip route replace default via "$GW" dev "$DEV" table "$TABLE"
+ fi
 }
 restore_rule(){
  LINE="$1"; set -- $LINE
