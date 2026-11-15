@@ -9,6 +9,7 @@ printf DIRECT_MAIN >"$D/main.json"
 printf DIRECT_LIMIT >"$D/limit.json"
 printf TUNNEL_MAIN >"$D/tunnel-main.json"
 printf TUNNEL_LIMIT >"$D/tunnel-limit.json"
+printf NFT >"$D/bonding.nft"
 printf 'main\t%s\txray\tvless\tfreedom\t%s\n' "$D/main.json" "$D/tunnel-main.json" >"$D/manifest"
 printf 'limit5\t%s\txray-5mbps\tvless-5mbps\tfreedom-5mbps\t%s\n' "$D/limit.json" "$D/tunnel-limit.json" >>"$D/manifest"
 cat >"$D/bin/step" <<'EOF'
@@ -18,13 +19,13 @@ name="${0##*/}"; echo "$name $* SNAP=${MPTCP_ROUTING_SNAPSHOT:-}" >>"$MOCK_LOG"
 case "$name" in curl) printf '%s' "${MOCK_HTTP:-204}";; ip) [ "${2:-}" = endpoint ] && [ "${MOCK_EP:-2}" -gt 0 ] && seq 1 "${MOCK_EP:-2}";; ss) printf 'subflows_total:%s\n' "${MOCK_SF:-2}";; esac
 exit 0
 EOF
-for n in precheck routing rollback direct-restore restart reconnect sync curl ip ss xray; do cp "$D/bin/step" "$D/bin/$n"; chmod 755 "$D/bin/$n"; done
+for n in precheck routing rollback direct-restore restart reconnect sync curl ip ss xray nft; do cp "$D/bin/step" "$D/bin/$n"; chmod 755 "$D/bin/$n"; done
 run(){
  env MOCK_LOG="$D/actions" MOCK_FAIL="${MOCK_FAIL:-}" MOCK_HTTP="${MOCK_HTTP:-204}" MOCK_SF="${MOCK_SF:-2}" MOCK_EP="${MOCK_EP:-2}" \
  MPTCP_ACTIVATE_DIR="$D/work" MPTCP_MANIFEST="$D/manifest" MPTCP_PAUSED_FILE="$D/paused" \
  MPTCP_PRECHECK="$D/bin/precheck" MPTCP_ROUTING_EXEC="$D/bin/routing" MPTCP_ROUTING_ROLLBACK="$D/bin/rollback" \
  MPTCP_DIRECT_RESTORE="$D/bin/direct-restore" MPTCP_PROFILE_RESTART="$D/bin/restart" MPTCP_RECONNECT="$D/bin/reconnect" \
- MPTCP_SYNC_5M="$D/bin/sync" MPTCP_CURL_BIN="$D/bin/curl" MPTCP_IP_BIN="$D/bin/ip" MPTCP_SS_BIN="$D/bin/ss" \
+ MPTCP_SYNC_5M="$D/bin/sync" MPTCP_CURL_BIN="$D/bin/curl" MPTCP_IP_BIN="$D/bin/ip" MPTCP_SS_BIN="$D/bin/ss" MPTCP_NFT_BIN="$D/bin/nft" MPTCP_NFT_FILE="$D/bonding.nft" \
  MPTCP_XRAY_BIN="$D/bin/xray" "$A" --apply
 }
 reset(){ printf paused >"$D/paused"; printf DIRECT_MAIN >"$D/main.json"; printf DIRECT_LIMIT >"$D/limit.json"; : >"$D/actions"; rm -rf "$D/work"; }
