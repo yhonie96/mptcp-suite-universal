@@ -11,6 +11,8 @@ DRESTORE="${MPTCP_DIRECT_RESTORE:-/usr/sbin/mptcp-direct-restore}"
 RESTART="${MPTCP_PROFILE_RESTART:-/usr/sbin/mptcp-profile-restart}"
 RECONNECT="${MPTCP_RECONNECT:-/usr/sbin/mptcp-reconnect}"
 SYNC="${MPTCP_SYNC_5M:-/usr/lib/netcontrol/bsbf-5mbps-sync.sh}"
+NFT="${MPTCP_NFT_BIN:-nft}"
+NFT_FILE="${MPTCP_NFT_FILE:-/usr/share/bsbf/bsbf_bonding.nft}"
 CURL="${MPTCP_CURL_BIN:-curl}"
 IP="${MPTCP_IP_BIN:-ip}"
 SS="${MPTCP_SS_BIN:-ss}"
@@ -21,6 +23,7 @@ case "$MODE" in --dry-run) echo MPTCP_ACTIVATE_DRY_RUN; exit 0;; --apply) ;; *) 
 [ -s "$MANIFEST" ] || { echo ERROR=missing_manifest; exit 4; }
 rm -rf "$DIR"; mkdir -p "$DIR/direct"
 rollback(){
+ "$NFT" delete table ip bsbf_bonding >/dev/null 2>/dev/null || true
  /etc/init.d/bsbf-mptcp stop >/dev/null 2>/dev/null || true
  MPTCP_DIRECT_SNAPSHOT_DIR="$DIR/direct" "$DRESTORE" --apply >/dev/null 2>&1 || true
  MPTCP_ROUTING_SNAPSHOT="$SNAP" "$RBACK" --apply >/dev/null 2>&1 || true
@@ -50,6 +53,13 @@ STAGE=profile_restart
 "$RESTART" >/dev/null 2>&1 || rollback
 STAGE=reconnect
 MPTCP_RESUME=1 "$RECONNECT" >/dev/null 2>&1 || rollback
+STAGE=diversion_check
+"$NFT" -c -f "$NFT_FILE" >/dev/null 2>&1 || rollback
+STAGE=diversion_load
+"$NFT" -f "$NFT_FILE" >/dev/null 2>&1 || rollback
+STAGE=diversion_validate
+"$NFT" list table ip bsbf_bonding >/dev/null 2>&1 || rollback
+"$NFT" list set ip bsbf_bonding netcontrol_5m >/dev/null 2>&1 || rollback
 STAGE=sync
 [ -x "$SYNC" ] && "$SYNC" >/dev/null 2>&1 || true
 STAGE=validate
