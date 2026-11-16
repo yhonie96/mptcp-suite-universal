@@ -16,6 +16,7 @@ NFT_FILE="${MPTCP_NFT_FILE:-/usr/share/bsbf/bsbf_bonding.nft}"
 CURL="${MPTCP_CURL_BIN:-curl}"
 IP="${MPTCP_IP_BIN:-ip}"
 SS="${MPTCP_SS_BIN:-ss}"
+UCI="${MPTCP_UCI_BIN:-uci}"
 XRAY="${MPTCP_XRAY_BIN:-xray}"
 SNAP="$DIR/routing.snapshot"
 case "$MODE" in --dry-run) echo MPTCP_ACTIVATE_DRY_RUN; exit 0;; --apply) ;; *) echo ERROR=invalid_mode; exit 2;; esac
@@ -63,10 +64,16 @@ STAGE=diversion_validate
 STAGE=sync
 [ -x "$SYNC" ] && "$SYNC" >/dev/null 2>&1 || true
 STAGE=validate
-code="$($CURL -4 -sS --max-time 12 -o /dev/null -w '%{http_code}' https://connectivitycheck.gstatic.com/generate_204 2>/dev/null || true)"
-[ "$code" = 204 ] || rollback
+code="$($CURL -4 -sS --max-time 12 -o /dev/null -w "%{http_code}" https://connectivitycheck.gstatic.com/generate_204 2>/dev/null || true)"
 ep="$($IP mptcp endpoint show 2>/dev/null | grep -c . || true)"
-sf="$($SS -Mi 2>/dev/null | grep -o 'subflows_total:[0-9]*' | cut -d: -f2 | sort -nr | head -n1)"; sf="${sf:-0}"
+sf="$($SS -Mi 2>/dev/null | grep -o "subflows_total:[0-9]*" | cut -d: -f2 | sort -nr | head -n1)"; sf="${sf:-0}"
 [ "$ep" -ge 2 ] || rollback
+while IFS="$(printf "\t")" read -r id cfg svc vt ft tunnel; do
+ [ -n "$id" ] || continue
+ port="$($UCI -q get mptcp_profiles.$id.local_port 2>/dev/null || true)"
+ case "$port" in ""|*[!0-9]*) rollback;; esac
+ $SS -H -lnt | grep -Eq "127\\.0\\.0\\.1:$port[[:space:]]" || rollback
+ $SS -H -lnu | grep -Eq "127\\.0\\.0\\.1:$port[[:space:]]" || rollback
+done <"$MANIFEST"
 rm -f "$PAUSED" "$SNAP"
 echo "MPTCP_ACTIVATE_OK http=$code endpoint=$ep subflow=$sf"
