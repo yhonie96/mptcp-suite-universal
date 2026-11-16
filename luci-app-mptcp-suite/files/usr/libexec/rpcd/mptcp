@@ -4,12 +4,18 @@
 DIR="${MPTCP_SUITE_DIR:-/etc/mptcp-suite}"
 PAUSED=$DIR/paused
 MANIFEST=$DIR/tunnel-profiles.tsv
-PROFILE_LIST=/usr/sbin/mptcp-profile-list
-PROFILE_BACKUP=/usr/sbin/mptcp-profile-backup
-PROFILE_RESTART=/usr/sbin/mptcp-profile-restart
+PROFILE_LIST="${MPTCP_PROFILE_LIST:-/usr/sbin/mptcp-profile-list}"
+PROFILE_BACKUP="${MPTCP_PROFILE_BACKUP:-/usr/sbin/mptcp-profile-backup}"
+PROFILE_RESTART="${MPTCP_PROFILE_RESTART:-/usr/sbin/mptcp-profile-restart}"
 DIRECT_SNAPSHOT="${MPTCP_DIRECT_SNAPSHOT:-/usr/sbin/mptcp-direct-snapshot}"
 RESUME_CHECK="${MPTCP_RESUME_CHECK:-/usr/sbin/mptcp-resume-safe}"
 ACTIVATE="${MPTCP_ACTIVATE:-/usr/sbin/mptcp-activate}"
+ROUTING_CLEAR="${MPTCP_ROUTING_CLEAR:-/usr/libexec/mptcp-suite/routing-managed-clear}"
+UCODE="${MPTCP_UCODE_BIN:-ucode}"
+XRAY_BIN="${MPTCP_XRAY_BIN:-xray}"
+INITD="${MPTCP_INITD_DIR:-/etc/init.d}"
+NFT_BIN="${MPTCP_NFT_BIN:-nft}"
+IP_BIN="${MPTCP_IP_BIN:-ip}"
 CHECK_URL=https://connectivitycheck.gstatic.com/generate_204
 
 reply() {
@@ -20,11 +26,11 @@ reply() {
 }
 
 enable_service() {
- /etc/init.d/"$1" enable >/dev/null 2>&1 || true
+ "$INITD/$1" enable >/dev/null 2>&1 || true
 }
 
 disable_service() {
- /etc/init.d/"$1" disable >/dev/null 2>&1 || true
+ "$INITD/$1" disable >/dev/null 2>&1 || true
 }
 
 check_http(){
@@ -39,9 +45,13 @@ check_http(){
  return 1
 }
 
+clear_managed_routing() {
+ MPTCP_ROUTING_CLEAR_APPLY=1 "$ROUTING_CLEAR" --apply >/tmp/mptcp-routing-clear.log 2>&1
+}
+
 disable_diversion() {
- /etc/init.d/bsbf-bonding-nft disable >/dev/null 2>&1 || true
- nft delete table ip bsbf_bonding >/dev/null 2>&1 || true
+ "$INITD/bsbf-bonding-nft" disable >/dev/null 2>&1 || true
+ "$NFT_BIN" delete table ip bsbf_bonding >/dev/null 2>&1 || true
 }
 
 cleanup_staged() {
@@ -60,7 +70,7 @@ restore_profiles() {
   [ -n "$id" ] || continue
   [ -s "$snap" ] || { cleanup_staged; return 1; }
   cp -p "$snap" "$cfg.restore.json" || { cleanup_staged; return 1; }
-  xray run -test -c "$cfg.restore.json" >/tmp/xray-tunnel-test.log 2>&1 ||
+  "$XRAY_BIN" run -test -c "$cfg.restore.json" >/tmp/xray-tunnel-test.log 2>&1 ||
    { cleanup_staged; return 1; }
  done <"$MANIFEST"
 
@@ -86,9 +96,9 @@ direct_mode() {
   source="$cfg"
   [ "${1:-}" = reuse ] && source="$snap"
   [ -s "$source" ] || { cleanup_staged; return 1; }
-  ucode "$DIR/make-direct.uc" "$source" "$cfg.direct.json" "$vt" "$ft" ||
+  "$UCODE" "$DIR/make-direct.uc" "$source" "$cfg.direct.json" "$vt" "$ft" ||
    { cleanup_staged; return 1; }
-  xray run -test -c "$cfg.direct.json" >/tmp/xray-direct-test.log 2>&1 ||
+  "$XRAY_BIN" run -test -c "$cfg.direct.json" >/tmp/xray-direct-test.log 2>&1 ||
    { cleanup_staged; return 1; }
  done <"$MANIFEST"
 
@@ -106,12 +116,16 @@ direct_mode() {
   disable_service "$svc"
  done
 
- /etc/init.d/mptcp-autoreconnect stop >/dev/null 2>&1 || true
- /etc/init.d/bsbf-endpoint-repair stop >/dev/null 2>&1 || true
- /etc/init.d/bsbf-mptcp stop >/dev/null 2>&1 || true
- ip mptcp endpoint flush >/dev/null 2>&1 || true
+ "$INITD/mptcp-autoreconnect" stop >/dev/null 2>&1 || true
+ "$INITD/bsbf-endpoint-repair" stop >/dev/null 2>&1 || true
+ "$INITD/bsbf-mptcp" stop >/dev/null 2>&1 || true
+ "$IP_BIN" mptcp endpoint flush >/dev/null 2>&1 || true
 
  disable_diversion
+ if ! clear_managed_routing; then
+  touch "$PAUSED"
+  return 1
+ fi
  if ! "$PROFILE_RESTART" >/tmp/mptcp-profile-restart.log 2>&1; then
   touch "$PAUSED"
   return 1
@@ -187,7 +201,11 @@ call)
  ;;
  pause)
   [ -e "$PAUSED" ] && {
-   reply 1 "Mode Direct sudah aktif"
+   if clear_managed_routing; then
+    reply 1 "Mode Direct sudah aktif; routing MPTCP dibersihkan"
+   else
+    reply 0 "Mode Direct aktif, tetapi pembersihan routing gagal"
+   fi
    exit 0
   }
 
@@ -204,7 +222,7 @@ call)
     disable_service "$svc"
     /etc/init.d/"$svc" stop >/dev/null 2>&1 || true
    done
-   ip mptcp endpoint flush >/dev/null 2>&1 || true
+   "$IP_BIN" mptcp endpoint flush >/dev/null 2>&1 || true
    reply 0 "Direct gagal disiapkan; mode Direct darurat dipertahankan"
 
   fi

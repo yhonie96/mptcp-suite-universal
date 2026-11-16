@@ -11,10 +11,10 @@ echo "${0##*/} $*" >>"$MOCK_LOG"
 [ "${MOCK_FAIL:-}" = "${0##*/}" ] && exit 1
 exit 0
 EOF
-for n in snapshot precheck activate; do cp "$D/bin/helper" "$D/bin/$n"; chmod 755 "$D/bin/$n"; done
+for n in snapshot precheck activate routing-clear; do cp "$D/bin/helper" "$D/bin/$n"; chmod 755 "$D/bin/$n"; done
 run(){
  env MOCK_LOG="$D/actions" MOCK_FAIL="${MOCK_FAIL:-}" MPTCP_SUITE_DIR="$D/suite" \
- MPTCP_DIRECT_SNAPSHOT="$D/bin/snapshot" MPTCP_RESUME_CHECK="$D/bin/precheck" MPTCP_ACTIVATE="$D/bin/activate" \
+ MPTCP_DIRECT_SNAPSHOT="$D/bin/snapshot" MPTCP_RESUME_CHECK="$D/bin/precheck" MPTCP_ACTIVATE="$D/bin/activate" MPTCP_ROUTING_CLEAR="$D/bin/routing-clear" \
  "$F" call "$1"
 }
 : >"$D/actions"
@@ -37,3 +37,10 @@ echo MPTCP_RPC_RESUME_FAIL_SAFE_OK
 grep -Fq '"$DIRECT_SNAPSHOT" --apply' "$F"
 grep -Fq 'Direct aktif, tetapi snapshot rollback gagal' "$F"
 echo MPTCP_RPC_PAUSE_SNAPSHOT_STRUCTURE_OK
+
+: >"$D/actions"
+touch "$D/suite/paused"
+out="$(run pause)"
+echo "$out" | jsonfilter -e '@.ok' | grep -qx true
+grep -qx 'routing-clear --apply' "$D/actions"
+echo MPTCP_RPC_PAUSED_ROUTING_CLEAR_OK
