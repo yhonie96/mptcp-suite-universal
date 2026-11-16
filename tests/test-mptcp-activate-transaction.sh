@@ -47,10 +47,10 @@ for fail in precheck routing restart reconnect; do
  grep -Fq 'direct-restore --apply' "$D/actions"; grep -Fq 'rollback --apply SNAP=' "$D/actions"
  echo "MPTCP_ACTIVATE_${fail}_ROLLBACK_OK"
 done
-reset; out="$(MOCK_HTTP=000 run)"
-echo "$out" | grep -Fq "MPTCP_ACTIVATE_OK http=000 endpoint=2 subflow=2"
-[ ! -e "$D/paused" ]
-echo MPTCP_ACTIVATE_HTTP_DIAGNOSTIC_OK
+reset; set +e; out="$(MOCK_HTTP=000 run 2>&1)"; rc=$?; set -e
+[ "$rc" -ne 0 ]; [ -e "$D/paused" ]
+echo "$out" | grep -Fq "stage=validate http=000"
+echo MPTCP_ACTIVATE_HTTP_ROLLBACK_OK
 reset; set +e; out="$(MOCK_EP=0 run 2>&1)"; rc=$?; set -e
 [ "$rc" -ne 0 ]; echo "$out" | grep -Fq "stage=validate http=204 endpoint=0 subflow=2"
 echo MPTCP_ACTIVATE_ENDPOINT_ROLLBACK_OK
@@ -65,10 +65,9 @@ for proto in tcp udp; do
  echo "$out" | grep -Fq "stage=validate"
  echo "MPTCP_ACTIVATE_LISTENER_${proto}_ROLLBACK_OK"
 done
-reset
-out="$(MOCK_SF=1 run)"
-echo "$out" | grep -Fq 'MPTCP_ACTIVATE_OK'
-[ ! -e "$D/paused" ]
-echo MPTCP_ACTIVATE_SUBFLOW_DIAGNOSTIC_OK
+reset; set +e; out="$(MOCK_SF=1 run 2>&1)"; rc=$?; set -e
+[ "$rc" -ne 0 ]; [ -e "$D/paused" ]
+echo "$out" | grep -Fq "subflow=1"
+echo MPTCP_ACTIVATE_SUBFLOW_ROLLBACK_OK
 grep -Fq 'bsbf-mptcp stop' "$A"
 echo MPTCP_ACTIVATE_ROLLBACK_SERVICE_OK
