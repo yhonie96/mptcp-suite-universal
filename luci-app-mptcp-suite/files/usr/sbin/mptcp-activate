@@ -12,7 +12,8 @@ RESTART="${MPTCP_PROFILE_RESTART:-/usr/sbin/mptcp-profile-restart}"
 RECONNECT="${MPTCP_RECONNECT:-/usr/sbin/mptcp-reconnect}"
 SYNC="${MPTCP_SYNC_5M:-/usr/lib/netcontrol/bsbf-5mbps-sync.sh}"
 NFT="${MPTCP_NFT_BIN:-nft}"
-NFT_FILE="${MPTCP_NFT_FILE:-/usr/share/bsbf/bsbf_bonding.nft}"
+NFT_FILE="${MPTCP_NFT_FILE:-$DIR/bsbf_bonding.nft}"
+NFT_GENERATOR="${MPTCP_NFT_GENERATOR:-/usr/libexec/mptcp-suite/tproxy-nft-generate}"
 CURL="${MPTCP_CURL_BIN:-curl}"
 IP="${MPTCP_IP_BIN:-ip}"
 SS="${MPTCP_SS_BIN:-ss}"
@@ -54,6 +55,8 @@ STAGE=profile_restart
 "$RESTART" >/dev/null 2>&1 || rollback
 STAGE=reconnect
 MPTCP_RESUME=1 "$RECONNECT" >/dev/null 2>&1 || rollback
+STAGE=diversion_generate
+"$NFT_GENERATOR" "$NFT_FILE" >/dev/null 2>&1 || rollback
 STAGE=diversion_check
 "$NFT" -c -f "$NFT_FILE" >/dev/null 2>&1 || rollback
 STAGE=diversion_load

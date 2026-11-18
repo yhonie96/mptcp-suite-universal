@@ -114,6 +114,8 @@ case "$1" in
      json_add_string config "$config"
      json_add_string service "$service"
      json_add_string limit "$limit"
+     role="$(uci -q get mptcp_profiles.$section.diversion_role)"; role="${role:-none}"
+     json_add_string diversion_role "$role"
      json_add_int local_port "${local_port:-0}"
      json_add_int vps_port "${vps_port:-0}"
      json_add_boolean enabled "${enabled:-0}"
@@ -135,6 +137,7 @@ case "$1" in
     json_get_var vps_port vps_port
     json_get_var local_port local_port
     json_get_var limit_label limit_label
+    json_get_var diversion_role diversion_role
 
     valid_id "$id" || {
      reply 0 "ID hanya boleh huruf kecil, angka, garis dan underscore"
@@ -151,6 +154,13 @@ case "$1" in
      exit 0
     }
 
+    case "${diversion_role:-none}" in main|limited|none) ;; *) reply 0 "Role diversion tidak valid"; exit 0;; esac
+    if [ "${diversion_role:-none}" != none ]; then
+     for section in $(uci -q show mptcp_profiles | awk -F"[.=]" '$0 ~ /^mptcp_profiles\.[^.]+=profile$/ {print $2}'); do
+      [ "$section" = "$id" ] && continue
+      [ "$(uci -q get mptcp_profiles.$section.diversion_role)" = "$diversion_role" ] && { reply 0 "Role diversion sudah dipakai"; exit 0; }
+     done
+    fi
     case "$vps_port:$local_port" in
      *[!0-9:]*|:*|*:)
       reply 0 "Port harus berupa angka"
@@ -218,6 +228,7 @@ set mptcp_profiles.$id.server='$server'
 set mptcp_profiles.$id.vps_port='$vps_port'
 set mptcp_profiles.$id.local_port='$local_port'
 set mptcp_profiles.$id.limit_label='$limit_label'
+set mptcp_profiles.$id.diversion_role='${diversion_role:-none}'
 UCI
 
     if [ "$is_new" -eq 1 ]; then

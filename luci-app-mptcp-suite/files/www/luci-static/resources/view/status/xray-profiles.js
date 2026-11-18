@@ -8,7 +8,7 @@ var status=rpc.declare({
 });
 var saveMeta=rpc.declare({
  object:'xray-profiles',method:'save_draft',
- params:['id','name','server','vps_port','local_port','limit_label'],
+ params:['id','name','server','vps_port','local_port','limit_label','diversion_role'],
  expect:{}
 });
 var applyMeta=rpc.declare({
@@ -65,6 +65,15 @@ function field(title,id,type,value,placeholder){
    placeholder:placeholder||'',
    autocomplete:'off'
   })
+ ]);
+}
+
+function selectField(title,id,options,value){
+ return E('label',{class:'xp-field'},[
+  E('span',{},title),
+  E('select',{id:id},options.map(function(o){
+   return E('option',{value:o[0],selected:o[0]===value},o[1]);
+  }))
  ]);
 }
 
@@ -210,6 +219,7 @@ return view.extend({
     E('div',{class:'xp-grid'},[
      E('div',{},['Limit: ',E('strong',{},p.limit)]),
      E('div',{},['Port VPS: ',E('strong',{},p.vps_port)]),
+     E('div',{},['Peran diversion: ',E('strong',{},p.diversion_role||'none')]),
      E('div',{},['Service: ',E('strong',{},p.service)]),
      E('div',{},['ID: ',E('strong',{},p.id)])
     ]),
@@ -264,6 +274,11 @@ return view.extend({
      field('Port VPS','xp-vps','number','','contoh: 16445'),
      field('Port lokal','xp-local','number','','contoh: 12347'),
      field('Label limit','xp-limit','text','','contoh: 10 Mbps'),
+     selectField('Peran diversion','xp-role',[
+      ['none','Tidak dialihkan'],
+      ['main','Utama'],
+      ['limited','Terbatas']
+     ],'none'),
 
      field('UUID','xp-uuid','password','','Rahasia'),
      field('SNI','xp-sni','text','www.cloudflare.com'),
@@ -294,7 +309,7 @@ return view.extend({
 
       return saveMeta(
        id,val('xp-name'),val('xp-server'),
-       val('xp-vps'),val('xp-local'),val('xp-limit')
+       val('xp-vps'),val('xp-local'),val('xp-limit'),val('xp-role')
       )
       .then(stop)
       .then(function(){return applyMeta();})
