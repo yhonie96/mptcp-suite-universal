@@ -12,3 +12,6 @@ grep -Fq 'set_default interval 10' mptcp-suite-routing/files/etc/uci-defaults/98
 ! grep -Eq "WAN1|wwan" mptcp-suite-core/files/etc/config/mptcp_suite mptcp-suite-routing/files/etc/uci-defaults/98-mptcp-paused-failover
 grep -Fq 'mptcp_suite.core.primary_wan' mptcp-suite-routing/files/usr/libexec/mptcp-suite/paused-failover-monitor
 grep -Fq 'mptcp_suite.core.secondary_wan' mptcp-suite-routing/files/usr/libexec/mptcp-suite/paused-failover-monitor
+
+grep -Fq "option probe_ip '1.1.1.1'" mptcp-suite-core/files/etc/config/mptcp_suite
+grep -Fq 'set_default probe_ip 1.1.1.1' mptcp-suite-routing/files/etc/uci-defaults/98-mptcp-paused-failover

@@ -12,17 +12,17 @@ case "$*" in
 esac
 exit 0
 MOCK
-cat >"$D/curl" <<'MOCK'
+cat >"$D/ping" <<'MOCK'
 #!/bin/sh
-echo "${HTTP:-204}"
+[ "${HTTP:-204}" = 204 ]
 MOCK
-chmod 755 "$D/ip" "$D/curl"
-run(){ env MPTCP_IP_BIN="$D/ip" MPTCP_CURL_BIN="$D/curl" MPTCP_PAUSED_FAILOVER_LOCK="$D/lock" MPTCP_PAUSED_FAILOVER_SNAP="$D/snap" MPTCP_PAUSED_FAILOVER_APPLY=1 LOG="$D/log" SNAPSHOT="$SNAPSHOT" EXPECT_GW="${EXPECT_GW:-192.168.1.1}" EXPECT_DEV="${EXPECT_DEV:-phy0-sta0}" HTTP="${HTTP:-204}" FAIL_SECONDARY_RESTORE="${FAIL_SECONDARY_RESTORE:-0}" "$R" --apply FAILOVER eth1 192.168.8.1 7 phy0-sta0 192.168.1.1 9 url; }
+chmod 755 "$D/ip" "$D/ping"
+run(){ env MPTCP_IP_BIN="$D/ip" MPTCP_PING_BIN="$D/ping" MPTCP_PAUSED_FAILOVER_LOCK="$D/lock" MPTCP_PAUSED_FAILOVER_SNAP="$D/snap" MPTCP_PAUSED_FAILOVER_APPLY=1 LOG="$D/log" SNAPSHOT="$SNAPSHOT" EXPECT_GW="${EXPECT_GW:-192.168.1.1}" EXPECT_DEV="${EXPECT_DEV:-phy0-sta0}" HTTP="${HTTP:-204}" FAIL_SECONDARY_RESTORE="${FAIL_SECONDARY_RESTORE:-0}" "$R" --apply FAILOVER eth1 192.168.8.1 7 phy0-sta0 192.168.1.1 9 url; }
 SNAPSHOT='default via 192.168.8.1 dev eth1 proto static metric 7\ndefault via 192.168.1.1 dev phy0-sta0 proto static metric 9\n'; : >"$D/log"
 run | grep -qx PAUSED_FAILOVER_ROUTE_OK=FAILOVER
 grep -Fq 'route del default via 192.168.8.1 dev eth1 metric 7' "$D/log"
 # Rollback parses proto static by keywords and restores both metrics
-: >"$D/log"; set +e; O="$(HTTP=000 run 2>&1)"; RC=$?; set -e; [ "$RC" -eq 3 ]; echo "$O" | grep -Fq ERROR=http_validation_failed
+: >"$D/log"; set +e; O="$(HTTP=000 run 2>&1)"; RC=$?; set -e; [ "$RC" -eq 3 ]; echo "$O" | grep -Fq ERROR=probe_validation_failed
 grep -Fq 'route replace default via 192.168.8.1 dev eth1 metric 7' "$D/log"
 grep -Fq 'route replace default via 192.168.1.1 dev phy0-sta0 metric 9' "$D/log"
 # Variant without proto static also restores

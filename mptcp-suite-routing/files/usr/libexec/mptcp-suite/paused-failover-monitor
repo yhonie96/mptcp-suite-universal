@@ -1,22 +1,23 @@
 #!/bin/sh
 set -eu
-UCI="${MPTCP_UCI_BIN:-uci}"; CURL="${MPTCP_CURL_BIN:-curl}"; IP="${MPTCP_IP_BIN:-ip}"
+UCI="${MPTCP_UCI_BIN:-uci}"; PING="${MPTCP_PING_BIN:-ping}"; IP="${MPTCP_IP_BIN:-ip}"
 ROUTE="${MPTCP_PAUSED_FAILOVER_ROUTE_BIN:-/usr/libexec/mptcp-suite/paused-failover-route}"
 PAUSED="${MPTCP_PAUSED_FILE:-/etc/mptcp-suite/paused}"; STATE="${MPTCP_PAUSED_FAILOVER_STATE:-/tmp/mptcp-paused-failover.state}"
 ONCE="${MPTCP_PAUSED_FAILOVER_ONCE:-0}"; COMMAND="${1:---run}"
+LOCK="${MPTCP_PAUSED_FAILOVER_MONITOR_LOCK:-/tmp/mptcp-paused-failover-monitor.lock}"
 get(){ "$UCI" -q get "$1" 2>/dev/null || true; }
 log(){ logger -t mptcp-paused-failover "$*" 2>/dev/null || true; echo "$*"; }
-probe(){ [ "$("$CURL" --interface "$1" -4 -sS --connect-timeout 3 --max-time 8 -o /dev/null -w '%{http_code}' "$URL" 2>/dev/null || true)" = 204 ]; }
+probe(){ "$PING" -c 1 -W 2 -I "$1" "$PROBE_IP" >/dev/null 2>&1; }
 load_config(){
  PIF="$(get mptcp_suite.failover.primary_interface)"; PIF="${PIF:-$(get mptcp_suite.core.primary_wan)}"
  SIF="$(get mptcp_suite.failover.secondary_interface)"; SIF="${SIF:-$(get mptcp_suite.core.secondary_wan)}"
  PDEV="$(get network.$PIF.device)"; PGW="$(get network.$PIF.gateway)"; PMET="$(get network.$PIF.metric)"
  SDEV="$(get network.$SIF.device)"; SGW="$(get network.$SIF.gateway)"; SMET="$(get network.$SIF.metric)"
- URL="$(get mptcp_suite.failover.check_url)"; FAIL="$(get mptcp_suite.failover.failure_threshold)"; REC="$(get mptcp_suite.failover.recovery_threshold)"
+ URL="$(get mptcp_suite.failover.check_url)"; PROBE_IP="$(get mptcp_suite.failover.probe_ip)"; PROBE_IP="${PROBE_IP:-1.1.1.1}"; FAIL="$(get mptcp_suite.failover.failure_threshold)"; REC="$(get mptcp_suite.failover.recovery_threshold)"
  INTERVAL="$(get mptcp_suite.failover.interval)"; INTERVAL="${INTERVAL:-10}"
  case "$FAIL:$REC:$INTERVAL:$PMET:$SMET" in *[!0-9:]*) log ERROR=invalid_config; return 1;; esac
  [ "$FAIL" -gt 0 ] && [ "$REC" -gt 0 ] && [ "$INTERVAL" -gt 0 ] || { log ERROR=invalid_config; return 1; }
- [ -n "$PDEV" ] && [ -n "$PGW" ] && [ -n "$SDEV" ] && [ -n "$SGW" ] && [ -n "$URL" ] || { log ERROR=invalid_config; return 1; }
+ [ -n "$PDEV" ] && [ -n "$PGW" ] && [ -n "$SDEV" ] && [ -n "$SGW" ] && [ -n "$URL" ] && [ -n "$PROBE_IP" ] || { log ERROR=invalid_config; return 1; }
 }
 actual_mode(){
  R="$("$IP" route get 8.8.8.8 2>/dev/null || true)"
@@ -32,7 +33,7 @@ read_counts(){
 save(){ T="$STATE.tmp.$$"; printf 'FC=%s\nRC=%s\n' "$FC" "$RC" >"$T"; mv "$T" "$STATE"; }
 restore_primary(){
  [ "$(actual_mode)" = secondary ] || { rm -f "$STATE"; return 0; }
- MPTCP_PAUSED_FAILOVER_APPLY=1 "$ROUTE" --apply RESTORE "$PDEV" "$PGW" "$PMET" "$SDEV" "$SGW" "$SMET" "$URL" || { log ERROR=restore_primary_failed; return 1; }
+ MPTCP_PAUSED_FAILOVER_APPLY=1 "$ROUTE" --apply RESTORE "$PDEV" "$PGW" "$PMET" "$SDEV" "$SGW" "$SMET" "$URL" "$PROBE_IP" || { log ERROR=restore_primary_failed; return 1; }
  rm -f "$STATE"; log STATE=primary
 }
 cycle(){
@@ -44,16 +45,16 @@ cycle(){
   RC=0; if probe "$PDEV"; then FC=0; else FC=$((FC+1)); fi
   if [ "$FC" -ge "$FAIL" ]; then
    probe "$SDEV" || { log KEEP=both_unhealthy; save; return; }
-   MPTCP_PAUSED_FAILOVER_APPLY=1 "$ROUTE" --apply FAILOVER "$PDEV" "$PGW" "$PMET" "$SDEV" "$SGW" "$SMET" "$URL" || { log ERROR=failover_transaction; save; return 1; }
+   MPTCP_PAUSED_FAILOVER_APPLY=1 "$ROUTE" --apply FAILOVER "$PDEV" "$PGW" "$PMET" "$SDEV" "$SGW" "$SMET" "$URL" "$PROBE_IP" || { log ERROR=failover_transaction; save; return 1; }
    FC=0; RC=0; log STATE=secondary
   fi
  else
   FC=0; if probe "$PDEV"; then RC=$((RC+1)); else RC=0; fi
   if [ "$RC" -ge "$REC" ]; then
-   MPTCP_PAUSED_FAILOVER_APPLY=1 "$ROUTE" --apply RESTORE "$PDEV" "$PGW" "$PMET" "$SDEV" "$SGW" "$SMET" "$URL" || { log ERROR=restore_transaction; save; return 1; }
+   MPTCP_PAUSED_FAILOVER_APPLY=1 "$ROUTE" --apply RESTORE "$PDEV" "$PGW" "$PMET" "$SDEV" "$SGW" "$SMET" "$URL" "$PROBE_IP" || { log ERROR=restore_transaction; save; return 1; }
    FC=0; RC=0; log STATE=primary
   fi
  fi
  save
 }
-case "$COMMAND" in --restore) load_config; restore_primary;; --run) while :; do cycle; [ "$ONCE" = 1 ] && exit 0; sleep "${INTERVAL:-10}"; done;; *) echo ERROR=invalid_mode; exit 2;; esac
+case "$COMMAND" in --restore) load_config; restore_primary;; --run) exec 8>"$LOCK"; flock -n 8 || { echo ERROR=locked; exit 0; }; while :; do cycle; [ "$ONCE" = 1 ] && exit 0; sleep "${INTERVAL:-10}"; done;; *) echo ERROR=invalid_mode; exit 2;; esac

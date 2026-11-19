@@ -1,10 +1,11 @@
 #!/bin/sh
 set -eu
 MODE="${1:---dry-run}"; ACTION="${2:-}"
-IP="${MPTCP_IP_BIN:-ip}"; CURL="${MPTCP_CURL_BIN:-curl}"
+IP="${MPTCP_IP_BIN:-ip}"; PING="${MPTCP_PING_BIN:-ping}"
 PDEV="${3:-}"; PGW="${4:-}"; PMET="${5:-}"
 SDEV="${6:-}"; SGW="${7:-}"; SMET="${8:-}"
 URL="${9:-https://connectivitycheck.gstatic.com/generate_204}"
+PROBE_IP="${10:-1.1.1.1}"
 LOCK="${MPTCP_PAUSED_FAILOVER_LOCK:-/tmp/mptcp-paused-failover-route.lock}"
 SNAP="${MPTCP_PAUSED_FAILOVER_SNAP:-/tmp/mptcp-paused-failover-main.routes}"
 number(){ case "$1" in ""|*[!0-9]*) return 1;; esac; }
@@ -74,6 +75,5 @@ else
 fi
 ROUTE="$("$IP" route get 8.8.8.8 2>/dev/null || true)"
 echo "$ROUTE" | grep -Fq "via $GW dev $TARGET" || { rollback || exit 7; echo ERROR=route_validation_failed; exit 3; }
-CODE="$("$CURL" --interface "$TARGET" -4 -sS --connect-timeout 3 --max-time 8 -o /dev/null -w '%{http_code}' "$URL" 2>/dev/null || true)"
-[ "$CODE" = 204 ] || { rollback || exit 7; echo ERROR=http_validation_failed; exit 3; }
+"$PING" -c 1 -W 2 -I "$TARGET" "$PROBE_IP" >/dev/null 2>&1 || { rollback || exit 7; echo ERROR=probe_validation_failed; exit 3; }
 echo "PAUSED_FAILOVER_ROUTE_OK=$ACTION"
