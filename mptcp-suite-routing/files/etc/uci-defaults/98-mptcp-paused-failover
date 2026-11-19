@@ -10,6 +10,7 @@ set_default(){
  changed=1
 }
 set_default interval 10
-set_default probe_ip 1.1.1.1
+set_default probe_ip_primary 1.1.1.1
+set_default probe_ip_secondary 8.8.8.8
 [ "$changed" -eq 0 ] || uci commit mptcp_suite
 exit 0
