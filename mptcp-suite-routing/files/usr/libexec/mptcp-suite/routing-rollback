@@ -8,6 +8,14 @@ RESTORE="${MPTCP_ROUTING_RESTORE_BIN:-/usr/libexec/mptcp-suite/routing-restore}"
 UCI="${MPTCP_ROUTING_UCI_BIN:-uci}"
 FLOCK="${MPTCP_ROUTING_FLOCK_BIN:-flock}"
 LOCK="${MPTCP_ROUTING_ROLLBACK_LOCK:-/tmp/mptcp-routing-rollback.lock}"
+TRAFFIC_APPLY="${MPTCP_TRAFFIC_POLICY_APPLY:-/usr/sbin/traffic-policy-apply}"
+LOGGER="${MPTCP_ROUTING_LOGGER_BIN:-logger}"
+refresh_traffic_policy(){
+ [ -x "$TRAFFIC_APPLY" ] || return 0
+ [ "$("$UCI" -q get traffic_policy.main.enabled 2>/dev/null || true)" = 1 ] || return 0
+ "$TRAFFIC_APPLY" >/dev/null 2>&1 || { "$LOGGER" -t mptcp-routing traffic_policy_refresh_failed 2>/dev/null || true; return 0; }
+}
+
 
 case "$MODE" in
  --dry-run)
@@ -55,4 +63,5 @@ state_revert(){
 "$UCI" -c "$CFG" commit mptcp_suite || { state_revert; echo ERROR=state_commit_failed; exit 10; }
 [ "$(get applied)" = 0 ] || { state_revert; echo ERROR=state_commit_verify_failed; exit 11; }
 
+refresh_traffic_policy
 echo ROUTING_ROLLBACK_OK

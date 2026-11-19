@@ -6,6 +6,14 @@ IP="${MPTCP_ROUTING_IP_BIN:-ip}"
 UCI="${MPTCP_ROUTING_UCI_BIN:-uci}"
 FLOCK="${MPTCP_ROUTING_FLOCK_BIN:-flock}"
 LOCK="${MPTCP_ROUTING_CLEAR_LOCK:-/tmp/mptcp-routing-clear.lock}"
+TRAFFIC_APPLY="${MPTCP_TRAFFIC_POLICY_APPLY:-/usr/sbin/traffic-policy-apply}"
+LOGGER="${MPTCP_ROUTING_LOGGER_BIN:-logger}"
+refresh_traffic_policy(){
+ [ -x "$TRAFFIC_APPLY" ] || return 0
+ [ "$("$UCI" -q get traffic_policy.main.enabled 2>/dev/null || true)" = 1 ] || return 0
+ "$TRAFFIC_APPLY" >/dev/null 2>&1 || { "$LOGGER" -t mptcp-routing traffic_policy_refresh_failed 2>/dev/null || true; return 0; }
+}
+
 STATE="${MPTCP_ROUTING_CLEAR_STATE:-/tmp/mptcp-routing-clear.state.$$}"
 get(){ "$UCI" -c "$CFG" -q get "mptcp_suite.routing.$1"; }
 valid_num(){ case "$1" in ""|*[!0-9]*) return 1;; esac; }
@@ -79,4 +87,5 @@ verify_clear || { restore_state || true; echo ERROR=clear_verify_failed; exit 7;
 "$UCI" -c "$CFG" set mptcp_suite.routing.applied=0 || { restore_state || true; echo ERROR=state_set_failed; exit 8; }
 "$UCI" -c "$CFG" commit mptcp_suite || { revert_applied; restore_state || true; echo ERROR=state_commit_failed; exit 9; }
 [ "$(get applied)" = 0 ] || { revert_applied; restore_state || true; echo ERROR=state_verify_failed; exit 10; }
+refresh_traffic_policy
 echo ROUTING_MANAGED_CLEAR_OK

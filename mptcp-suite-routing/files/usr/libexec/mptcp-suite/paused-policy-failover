@@ -1,0 +1,16 @@
+#!/bin/sh
+set -eu
+MODE="${1:---dry-run}"
+UCI="${MPTCP_UCI_BIN:-uci}"; IP="${MPTCP_IP_BIN:-ip}"
+TABLE="${MPTCP_POLICY_TABLE:-101}"; MARK="${MPTCP_POLICY_MARK:-0x102}"; PRIORITY="${MPTCP_POLICY_PRIORITY:-99}"
+get(){ "$UCI" -q get "$1"; }
+iface(){ local I="$1"; D="$(get network."$I".device)"; G="$(get network."$I".gateway)"; M="$(get network."$I".metric)"; [ -n "$D" ] && [ -n "$G" ] && [ -n "$M" ]; }
+load(){ P="$(get mptcp_suite.core.primary_wan)"; S="$(get mptcp_suite.core.secondary_wan)"; iface "$P"; PDEV="$D"; PGW="$G"; PMET="$M"; iface "$S"; SDEV="$D"; SGW="$G"; SMET="$M"; }
+apply(){ "$IP" rule del priority "$PRIORITY" 2>/dev/null || true; "$IP" rule add priority "$PRIORITY" fwmark "$MARK/0x1ff" lookup "$TABLE"; "$IP" route replace default via "$1" dev "$2" table "$TABLE" metric "$3"; "$IP" route flush cache; }
+load || { echo ERROR=invalid_wan_config; exit 2; }
+case "$MODE" in
+ --dry-run) echo "PAUSED_POLICY_FAILOVER_DRY_RUN table=$TABLE primary=$PDEV secondary=$SDEV" ;;
+ --secondary) [ -e "${MPTCP_PAUSED_FILE:-/etc/mptcp-suite/paused}" ] || { echo ERROR=not_paused; exit 3; }; apply "$SGW" "$SDEV" "$SMET"; echo PAUSED_POLICY_ROUTE_OK=SECONDARY ;;
+ --primary-fallback) [ -e "${MPTCP_PAUSED_FILE:-/etc/mptcp-suite/paused}" ] || { echo ERROR=not_paused; exit 3; }; apply "$PGW" "$PDEV" "$PMET"; echo PAUSED_POLICY_ROUTE_OK=PRIMARY_FALLBACK ;;
+ *) echo ERROR=invalid_mode; exit 4;;
+esac
