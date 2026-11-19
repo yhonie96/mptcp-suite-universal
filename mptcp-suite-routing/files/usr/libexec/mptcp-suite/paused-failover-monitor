@@ -1,0 +1,58 @@
+#!/bin/sh
+set -eu
+UCI="${MPTCP_UCI_BIN:-uci}"; CURL="${MPTCP_CURL_BIN:-curl}"; IP="${MPTCP_IP_BIN:-ip}"
+ROUTE="${MPTCP_PAUSED_FAILOVER_ROUTE_BIN:-/usr/libexec/mptcp-suite/paused-failover-route}"
+PAUSED="${MPTCP_PAUSED_FILE:-/etc/mptcp-suite/paused}"; STATE="${MPTCP_PAUSED_FAILOVER_STATE:-/tmp/mptcp-paused-failover.state}"
+ONCE="${MPTCP_PAUSED_FAILOVER_ONCE:-0}"; COMMAND="${1:---run}"
+get(){ "$UCI" -q get "$1" 2>/dev/null || true; }
+log(){ logger -t mptcp-paused-failover "$*" 2>/dev/null || true; echo "$*"; }
+probe(){ [ "$("$CURL" --interface "$1" -4 -sS --connect-timeout 3 --max-time 8 -o /dev/null -w '%{http_code}' "$URL" 2>/dev/null || true)" = 204 ]; }
+load_config(){
+ PIF="$(get mptcp_suite.failover.primary_interface)"; SIF="$(get mptcp_suite.failover.secondary_interface)"
+ PDEV="$(get network.$PIF.device)"; PGW="$(get network.$PIF.gateway)"; PMET="$(get network.$PIF.metric)"
+ SDEV="$(get network.$SIF.device)"; SGW="$(get network.$SIF.gateway)"; SMET="$(get network.$SIF.metric)"
+ URL="$(get mptcp_suite.failover.check_url)"; FAIL="$(get mptcp_suite.failover.failure_threshold)"; REC="$(get mptcp_suite.failover.recovery_threshold)"
+ INTERVAL="$(get mptcp_suite.failover.interval)"; INTERVAL="${INTERVAL:-10}"
+ case "$FAIL:$REC:$INTERVAL:$PMET:$SMET" in *[!0-9:]*) log ERROR=invalid_config; return 1;; esac
+ [ "$FAIL" -gt 0 ] && [ "$REC" -gt 0 ] && [ "$INTERVAL" -gt 0 ] || { log ERROR=invalid_config; return 1; }
+ [ -n "$PDEV" ] && [ -n "$PGW" ] && [ -n "$SDEV" ] && [ -n "$SGW" ] && [ -n "$URL" ] || { log ERROR=invalid_config; return 1; }
+}
+actual_mode(){
+ R="$("$IP" route get 8.8.8.8 2>/dev/null || true)"
+ case "$R" in *"via $PGW dev $PDEV"*) echo primary;; *"via $SGW dev $SDEV"*) echo secondary;; *) echo unknown;; esac
+}
+read_counts(){
+ FC=0; RC=0
+ [ -r "$STATE" ] || return 0
+ while IFS='=' read -r K V; do
+  case "$K:$V" in FC:*[!0-9]*|RC:*[!0-9]*) FC=0; RC=0; return 0;; FC:*) FC="$V";; RC:*) RC="$V";; esac
+ done <"$STATE"
+}
+save(){ T="$STATE.tmp.$$"; printf 'FC=%s\nRC=%s\n' "$FC" "$RC" >"$T"; mv "$T" "$STATE"; }
+restore_primary(){
+ [ "$(actual_mode)" = secondary ] || { rm -f "$STATE"; return 0; }
+ MPTCP_PAUSED_FAILOVER_APPLY=1 "$ROUTE" --apply RESTORE "$PDEV" "$PGW" "$PMET" "$SDEV" "$SGW" "$SMET" "$URL" || { log ERROR=restore_primary_failed; return 1; }
+ rm -f "$STATE"; log STATE=primary
+}
+cycle(){
+ load_config || return 1
+ if [ ! -e "$PAUSED" ] || [ "$(get mptcp_suite.failover.enabled)" != 1 ]; then restore_primary; echo MONITOR_IDLE; return; fi
+ MODE="$(actual_mode)"; [ "$MODE" != unknown ] || { log ERROR=route_state_unknown; return 1; }
+ read_counts
+ if [ "$MODE" = primary ]; then
+  RC=0; if probe "$PDEV"; then FC=0; else FC=$((FC+1)); fi
+  if [ "$FC" -ge "$FAIL" ]; then
+   probe "$SDEV" || { log KEEP=both_unhealthy; save; return; }
+   MPTCP_PAUSED_FAILOVER_APPLY=1 "$ROUTE" --apply FAILOVER "$PDEV" "$PGW" "$PMET" "$SDEV" "$SGW" "$SMET" "$URL" || { log ERROR=failover_transaction; save; return 1; }
+   FC=0; RC=0; log STATE=secondary
+  fi
+ else
+  FC=0; if probe "$PDEV"; then RC=$((RC+1)); else RC=0; fi
+  if [ "$RC" -ge "$REC" ]; then
+   MPTCP_PAUSED_FAILOVER_APPLY=1 "$ROUTE" --apply RESTORE "$PDEV" "$PGW" "$PMET" "$SDEV" "$SGW" "$SMET" "$URL" || { log ERROR=restore_transaction; save; return 1; }
+   FC=0; RC=0; log STATE=primary
+  fi
+ fi
+ save
+}
+case "$COMMAND" in --restore) load_config; restore_primary;; --run) while :; do cycle; [ "$ONCE" = 1 ] && exit 0; sleep "${INTERVAL:-10}"; done;; *) echo ERROR=invalid_mode; exit 2;; esac

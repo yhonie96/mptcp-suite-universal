@@ -20,6 +20,10 @@ endef
 define Package/mptcp-suite-routing/install
 	$(INSTALL_DIR) $(1)/usr/libexec/mptcp-suite
 	$(INSTALL_BIN) ./files/usr/libexec/mptcp-suite/* $(1)/usr/libexec/mptcp-suite/
+	$(INSTALL_DIR) $(1)/etc/init.d
+	$(INSTALL_BIN) ./files/etc/init.d/mptcp-paused-failover $(1)/etc/init.d/mptcp-paused-failover
+	$(INSTALL_DIR) $(1)/etc/uci-defaults
+	$(INSTALL_BIN) ./files/etc/uci-defaults/98-mptcp-paused-failover $(1)/etc/uci-defaults/98-mptcp-paused-failover
 endef
 
 $(eval $(call BuildPackage,mptcp-suite-routing))

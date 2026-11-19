@@ -1,0 +1,16 @@
+#!/bin/sh
+set -eu
+CFG=mptcp_suite.failover
+[ "$(uci -q get "$CFG")" = failover ] || exit 0
+changed=0
+set_default(){
+ key="$1"; value="$2"
+ [ -n "$(uci -q get "$CFG.$key")" ] && return 0
+ uci set "$CFG.$key=$value"
+ changed=1
+}
+set_default primary_interface WAN1
+set_default secondary_interface wwan
+set_default interval 10
+[ "$changed" -eq 0 ] || uci commit mptcp_suite
+exit 0

@@ -1,0 +1,79 @@
+#!/bin/sh
+set -eu
+MODE="${1:---dry-run}"; ACTION="${2:-}"
+IP="${MPTCP_IP_BIN:-ip}"; CURL="${MPTCP_CURL_BIN:-curl}"
+PDEV="${3:-}"; PGW="${4:-}"; PMET="${5:-}"
+SDEV="${6:-}"; SGW="${7:-}"; SMET="${8:-}"
+URL="${9:-https://connectivitycheck.gstatic.com/generate_204}"
+LOCK="${MPTCP_PAUSED_FAILOVER_LOCK:-/tmp/mptcp-paused-failover-route.lock}"
+SNAP="${MPTCP_PAUSED_FAILOVER_SNAP:-/tmp/mptcp-paused-failover-main.routes}"
+number(){ case "$1" in ""|*[!0-9]*) return 1;; esac; }
+device(){ case "$1" in ""|*[!A-Za-z0-9_.:-]*) return 1;; esac; }
+ipv4(){ echo "$1" | awk -F. 'NF==4{for(i=1;i<=4;i++)if($i!~/^[0-9]+$/||$i<0||$i>255)exit 1;exit 0}{exit 1}'; }
+device "$PDEV" && device "$SDEV" && ipv4 "$PGW" && ipv4 "$SGW" && number "$PMET" && number "$SMET" || { echo ERROR=invalid_parameters; exit 1; }
+case "$ACTION" in FAILOVER|RESTORE) ;; *) echo ERROR=invalid_action; exit 1;; esac
+commands(){
+ case "$ACTION" in
+  FAILOVER)
+   echo "$IP route del default via $PGW dev $PDEV metric $PMET"
+   echo "$IP route replace default via $SGW dev $SDEV metric $SMET"
+   ;;
+  RESTORE)
+   echo "$IP route replace default via $PGW dev $PDEV metric $PMET"
+   echo "$IP route replace default via $SGW dev $SDEV metric $SMET"
+   ;;
+ esac
+}
+[ "$MODE" = --apply ] || { commands; exit 0; }
+[ "${MPTCP_PAUSED_FAILOVER_APPLY:-0}" = 1 ] || { echo ERROR=apply_locked; exit 4; }
+exec 9>"$LOCK"; flock -n 9 || { echo ERROR=locked; exit 2; }
+"$IP" route show default >"$SNAP"
+parse_route(){
+ VIA=; DEV=; METRIC=
+ set -- $1
+ [ "${1:-}" = default ] || return 1
+ shift
+ while [ "$#" -gt 0 ]; do
+  K="$1"; shift
+  case "$K" in
+   via) [ "$#" -gt 0 ] || return 1; VIA="$1"; shift ;;
+   dev) [ "$#" -gt 0 ] || return 1; DEV="$1"; shift ;;
+   metric) [ "$#" -gt 0 ] || return 1; METRIC="$1"; shift ;;
+   proto|src|scope) [ "$#" -gt 0 ] || return 1; shift ;;
+   onlink|linkdown) ;;
+   *) return 1 ;;
+  esac
+ done
+ ipv4 "$VIA" && device "$DEV" && number "$METRIC"
+}
+validate_snapshot(){
+ COUNT=0
+ while IFS= read -r LINE; do parse_route "$LINE" || return 1; COUNT=$((COUNT+1)); done <"$SNAP"
+ [ "$COUNT" -gt 0 ]
+}
+restore_snapshot(){
+ validate_snapshot || return 1
+ TMP="$SNAP.parsed.$$"; : >"$TMP"
+ while IFS= read -r LINE; do parse_route "$LINE" || { rm -f "$TMP"; return 1; }; printf '%s\t%s\t%s\n' "$VIA" "$DEV" "$METRIC" >>"$TMP"; done <"$SNAP"
+ "$IP" route del default >/dev/null 2>&1 || true
+ OK=1
+ while IFS="$(printf '\t')" read -r VIA DEV METRIC; do "$IP" route replace default via "$VIA" dev "$DEV" metric "$METRIC" || OK=0; done <"$TMP"
+ rm -f "$TMP"
+ [ "$OK" = 1 ]
+}
+validate_snapshot || { echo ERROR=invalid_snapshot; exit 8; }
+rollback(){ restore_snapshot || { echo ERROR=snapshot_restore_failed; return 1; }; }
+if [ "$ACTION" = FAILOVER ]; then
+ "$IP" route del default via "$PGW" dev "$PDEV" metric "$PMET" || { rollback || exit 7; echo ERROR=route_change_failed; exit 5; }
+ "$IP" route replace default via "$SGW" dev "$SDEV" metric "$SMET" || { rollback || exit 7; echo ERROR=route_change_failed; exit 5; }
+ TARGET="$SDEV"; GW="$SGW"
+else
+ "$IP" route replace default via "$PGW" dev "$PDEV" metric "$PMET" || { rollback || exit 7; echo ERROR=route_change_failed; exit 5; }
+ "$IP" route replace default via "$SGW" dev "$SDEV" metric "$SMET" || { rollback || exit 7; echo ERROR=route_change_failed; exit 5; }
+ TARGET="$PDEV"; GW="$PGW"
+fi
+ROUTE="$("$IP" route get 8.8.8.8 2>/dev/null || true)"
+echo "$ROUTE" | grep -Fq "via $GW dev $TARGET" || { rollback || exit 7; echo ERROR=route_validation_failed; exit 3; }
+CODE="$("$CURL" --interface "$TARGET" -4 -sS --connect-timeout 3 --max-time 8 -o /dev/null -w '%{http_code}' "$URL" 2>/dev/null || true)"
+[ "$CODE" = 204 ] || { rollback || exit 7; echo ERROR=http_validation_failed; exit 3; }
+echo "PAUSED_FAILOVER_ROUTE_OK=$ACTION"
