@@ -9,8 +9,6 @@ set_default(){
  uci set "$CFG.$key=$value"
  changed=1
 }
-set_default primary_interface WAN1
-set_default secondary_interface wwan
 set_default interval 10
 [ "$changed" -eq 0 ] || uci commit mptcp_suite
 exit 0

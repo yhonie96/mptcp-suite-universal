@@ -8,7 +8,8 @@ get(){ "$UCI" -q get "$1" 2>/dev/null || true; }
 log(){ logger -t mptcp-paused-failover "$*" 2>/dev/null || true; echo "$*"; }
 probe(){ [ "$("$CURL" --interface "$1" -4 -sS --connect-timeout 3 --max-time 8 -o /dev/null -w '%{http_code}' "$URL" 2>/dev/null || true)" = 204 ]; }
 load_config(){
- PIF="$(get mptcp_suite.failover.primary_interface)"; SIF="$(get mptcp_suite.failover.secondary_interface)"
+ PIF="$(get mptcp_suite.failover.primary_interface)"; PIF="${PIF:-$(get mptcp_suite.core.primary_wan)}"
+ SIF="$(get mptcp_suite.failover.secondary_interface)"; SIF="${SIF:-$(get mptcp_suite.core.secondary_wan)}"
  PDEV="$(get network.$PIF.device)"; PGW="$(get network.$PIF.gateway)"; PMET="$(get network.$PIF.metric)"
  SDEV="$(get network.$SIF.device)"; SGW="$(get network.$SIF.gateway)"; SMET="$(get network.$SIF.metric)"
  URL="$(get mptcp_suite.failover.check_url)"; FAIL="$(get mptcp_suite.failover.failure_threshold)"; REC="$(get mptcp_suite.failover.recovery_threshold)"

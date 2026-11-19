@@ -4,7 +4,7 @@ M=mptcp-suite-routing/files/usr/libexec/mptcp-suite/paused-failover-monitor
 D="$(mktemp -d)"; trap 'rm -rf "$D"' EXIT INT TERM
 cat >"$D/uci" <<'MOCK'
 #!/bin/sh
-case "$*" in *failover.enabled) echo "${ENABLED:-1}";; *primary_interface) echo WAN1;; *secondary_interface) echo wwan;; *failure_threshold|*recovery_threshold) echo 3;; *failover.interval) echo 1;; *check_url) echo url;; *WAN1.device) echo eth1;; *WAN1.gateway) echo 192.168.8.1;; *WAN1.metric) echo 7;; *wwan.device) echo phy0-sta0;; *wwan.gateway) echo 192.168.1.1;; *wwan.metric) echo 9;; esac
+case "$*" in *failover.enabled) echo "${ENABLED:-1}";; *primary_interface|*secondary_interface) exit 1;; *core.primary_wan) echo uplink_a;; *core.secondary_wan) echo uplink_b;; *failure_threshold|*recovery_threshold) echo 3;; *failover.interval) echo 1;; *check_url) echo url;; *uplink_a.device) echo eth1;; *uplink_a.gateway) echo 192.168.8.1;; *uplink_a.metric) echo 7;; *uplink_b.device) echo phy0-sta0;; *uplink_b.gateway) echo 192.168.1.1;; *uplink_b.metric) echo 9;; esac
 MOCK
 cat >"$D/curl" <<'MOCK'
 #!/bin/sh

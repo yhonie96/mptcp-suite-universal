@@ -26,10 +26,10 @@ esac
 MOCK
 chmod 755 "$D/uci"
 run(){ PATH="$D:$PATH" MOCK_DB="$D/db" MOCK_LOG="$D/log" sh "$F"; }
-# Upgrade missing fields: add defaults but preserve enabled=0
+# Upgrade missing interval: add only interval and preserve enabled=0
 printf 'enabled=0\n' >"$D/db"; : >"$D/log"; run
-grep -qx primary_interface=WAN1 "$D/db"; grep -qx secondary_interface=wwan "$D/db"; grep -qx interval=10 "$D/db"; grep -qx enabled=0 "$D/db"; [ "$(grep -c '^commit$' "$D/log")" -eq 1 ]
+grep -qx interval=10 "$D/db"; grep -qx enabled=0 "$D/db"; ! grep -q 'interface=' "$D/db"; [ "$(grep -c '^commit$' "$D/log")" -eq 1 ]
 # Existing custom values: never overwrite and do not commit
-printf 'enabled=1\nprimary_interface=wanA\nsecondary_interface=wanB\ninterval=30\n' >"$D/db"; : >"$D/log"; run
-grep -qx primary_interface=wanA "$D/db"; grep -qx secondary_interface=wanB "$D/db"; grep -qx interval=30 "$D/db"; grep -qx enabled=1 "$D/db"; [ ! -s "$D/log" ]
-echo PAUSED_FAILOVER_UPGRADE_V5_OK
+printf 'enabled=1\nprimary_interface=uplink_x\nsecondary_interface=uplink_y\ninterval=30\n' >"$D/db"; : >"$D/log"; run
+grep -qx primary_interface=uplink_x "$D/db"; grep -qx secondary_interface=uplink_y "$D/db"; grep -qx interval=30 "$D/db"; grep -qx enabled=1 "$D/db"; [ ! -s "$D/log" ]
+echo PAUSED_FAILOVER_HARDCODE_FIX_V6_OK
