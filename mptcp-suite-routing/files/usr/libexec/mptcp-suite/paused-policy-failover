@@ -8,9 +8,22 @@ get(){ "$UCI" -q get "$1"; }
 iface(){ local I="$1"; D="$(get network."$I".device)"; G="$(get network."$I".gateway)"; M="$(get network."$I".metric)"; [ -n "$D" ] && [ -n "$G" ] && [ -n "$M" ]; }
 load(){ P="$(get mptcp_suite.core.primary_wan)"; S="$(get mptcp_suite.core.secondary_wan)"; iface "$P"; PDEV="$D"; PGW="$G"; PMET="$M"; iface "$S"; SDEV="$D"; SGW="$G"; SMET="$M"; }
 snapshot(){ "$IP" route show table "$TABLE" >"$SNAP"; }
-restore(){ "$IP" route flush table "$TABLE"; while IFS= read -r L; do [ -z "$L" ] || { set -- $L; [ "$1:$2:$4:$6" = "default:via:dev:metric" ] && "$IP" route add default via "$3" dev "$5" table "$TABLE" metric "$7" || return 1; }; done <"$SNAP"; "$IP" route flush cache; }
-verify(){ [ "$("$IP" route show table "$TABLE" | grep -c '^default ')" -eq 1 ] && "$IP" route show table "$TABLE" | grep -Fqx "default via $1 dev $2 metric $3"; }
-apply(){ local G="$1" D="$2" M="$3"; snapshot; "$IP" route flush table "$TABLE" || return 1; "$IP" route add default via "$G" dev "$D" table "$TABLE" metric "$M" || { restore || true; return 1; }; verify "$G" "$D" "$M" || { restore || true; return 1; }; "$IP" rule del priority "$PRIORITY" 2>/dev/null || true; "$IP" rule add priority "$PRIORITY" fwmark "$MARK/0x1ff" lookup "$TABLE" || { restore || true; return 1; }; "$IP" route flush cache; }
+restore(){
+ "$IP" route flush table "$TABLE" || return 1
+ while IFS= read -r L; do
+  [ -z "$L" ] || { set -- $L; [ "$1:$2:$4:$6" = "default:via:dev:metric" ] && "$IP" route add default via "$3" dev "$5" table "$TABLE" metric "$7" || return 1; }
+ done <"$SNAP"
+ "$IP" route flush cache
+ [ -n "$("$IP" route show table "$TABLE")" ]
+}
+safe_secondary(){ "$IP" route flush table "$TABLE" || true; "$IP" route add default via "$SGW" dev "$SDEV" table "$TABLE" metric "$SMET" || true; "$IP" route flush cache || true; }
+verify(){
+ local EG="$1" ED="$2" EM="$3"
+ [ "$("$IP" route show table "$TABLE" | grep -c '^default ')" -eq 1 ] || return 1
+ set -- $("$IP" route show table "$TABLE")
+ [ "${1:-}:${2:-}:${3:-}:${4:-}:${5:-}:${6:-}:${7:-}" = "default:via:$EG:dev:$ED:metric:$EM" ]
+}
+apply(){ local G="$1" D="$2" M="$3"; snapshot; "$IP" route flush table "$TABLE" || return 1; "$IP" route add default via "$G" dev "$D" table "$TABLE" metric "$M" || { restore || safe_secondary; return 1; }; verify "$G" "$D" "$M" || { restore || safe_secondary; return 1; }; "$IP" rule del priority "$PRIORITY" 2>/dev/null || true; "$IP" rule add priority "$PRIORITY" fwmark "$MARK/0x1ff" lookup "$TABLE" || { restore || safe_secondary; return 1; }; "$IP" route flush cache; }
 load || { echo ERROR=invalid_wan_config; exit 2; }
 case "$MODE" in --dry-run) echo "PAUSED_POLICY_FAILOVER_DRY_RUN table=$TABLE primary=$PDEV secondary=$SDEV"; exit 0;; --secondary) G="$SGW"; D="$SDEV"; M="$SMET"; OK=SECONDARY;; --primary-fallback) G="$PGW"; D="$PDEV"; M="$PMET"; OK=PRIMARY_FALLBACK;; *) echo ERROR=invalid_mode; exit 4;; esac
 [ -e "${MPTCP_PAUSED_FILE:-/etc/mptcp-suite/paused}" ] || { echo ERROR=not_paused; exit 3; }

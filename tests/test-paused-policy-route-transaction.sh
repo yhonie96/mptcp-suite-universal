@@ -35,3 +35,8 @@ set +e; O="$(ADD_FAIL=1 run --primary-fallback 2>&1)"; R=$?; set -e
 set +e; O="$(LOCK_BUSY=1 run --secondary 2>&1)"; R=$?; set -e
 [ "$R" -eq 5 ]; echo "$O" | grep -qx ERROR=lock_busy
 echo PAUSED_POLICY_ROUTE_TRANSACTION_V11_OK
+# Runtime iproute2 may append whitespace or protocol tokens; verification must parse required tokens.
+printf 'default via 192.168.1.1 dev phy0-sta0 metric 9 \n' >"$D/table"
+run --primary-fallback | grep -qx PAUSED_POLICY_ROUTE_OK=PRIMARY_FALLBACK
+grep -qx 'default via 192.168.8.1 dev eth1 metric 7' "$D/table"
+echo PAUSED_POLICY_ROUTE_FORMAT_V12_OK
