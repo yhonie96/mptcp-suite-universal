@@ -1,16 +1,20 @@
 #!/bin/sh
 set -eu
 MODE="${1:---dry-run}"
-UCI="${MPTCP_UCI_BIN:-uci}"; IP="${MPTCP_IP_BIN:-ip}"
+UCI="${MPTCP_UCI_BIN:-uci}"; IP="${MPTCP_IP_BIN:-ip}"; FLOCK="${MPTCP_FLOCK_BIN:-flock}"
 TABLE="${MPTCP_POLICY_TABLE:-101}"; MARK="${MPTCP_POLICY_MARK:-0x102}"; PRIORITY="${MPTCP_POLICY_PRIORITY:-99}"
+LOCK="${MPTCP_POLICY_LOCK:-/tmp/mptcp-paused-policy.lock}"; SNAP="${MPTCP_POLICY_SNAPSHOT:-/tmp/mptcp-paused-policy.snapshot.$$}"
 get(){ "$UCI" -q get "$1"; }
 iface(){ local I="$1"; D="$(get network."$I".device)"; G="$(get network."$I".gateway)"; M="$(get network."$I".metric)"; [ -n "$D" ] && [ -n "$G" ] && [ -n "$M" ]; }
 load(){ P="$(get mptcp_suite.core.primary_wan)"; S="$(get mptcp_suite.core.secondary_wan)"; iface "$P"; PDEV="$D"; PGW="$G"; PMET="$M"; iface "$S"; SDEV="$D"; SGW="$G"; SMET="$M"; }
-apply(){ "$IP" rule del priority "$PRIORITY" 2>/dev/null || true; "$IP" rule add priority "$PRIORITY" fwmark "$MARK/0x1ff" lookup "$TABLE"; "$IP" route replace default via "$1" dev "$2" table "$TABLE" metric "$3"; "$IP" route flush cache; }
+snapshot(){ "$IP" route show table "$TABLE" >"$SNAP"; }
+restore(){ "$IP" route flush table "$TABLE"; while IFS= read -r L; do [ -z "$L" ] || { set -- $L; [ "$1:$2:$4:$6" = "default:via:dev:metric" ] && "$IP" route add default via "$3" dev "$5" table "$TABLE" metric "$7" || return 1; }; done <"$SNAP"; "$IP" route flush cache; }
+verify(){ [ "$("$IP" route show table "$TABLE" | grep -c '^default ')" -eq 1 ] && "$IP" route show table "$TABLE" | grep -Fqx "default via $1 dev $2 metric $3"; }
+apply(){ local G="$1" D="$2" M="$3"; snapshot; "$IP" route flush table "$TABLE" || return 1; "$IP" route add default via "$G" dev "$D" table "$TABLE" metric "$M" || { restore || true; return 1; }; verify "$G" "$D" "$M" || { restore || true; return 1; }; "$IP" rule del priority "$PRIORITY" 2>/dev/null || true; "$IP" rule add priority "$PRIORITY" fwmark "$MARK/0x1ff" lookup "$TABLE" || { restore || true; return 1; }; "$IP" route flush cache; }
 load || { echo ERROR=invalid_wan_config; exit 2; }
-case "$MODE" in
- --dry-run) echo "PAUSED_POLICY_FAILOVER_DRY_RUN table=$TABLE primary=$PDEV secondary=$SDEV" ;;
- --secondary) [ -e "${MPTCP_PAUSED_FILE:-/etc/mptcp-suite/paused}" ] || { echo ERROR=not_paused; exit 3; }; apply "$SGW" "$SDEV" "$SMET"; echo PAUSED_POLICY_ROUTE_OK=SECONDARY ;;
- --primary-fallback) [ -e "${MPTCP_PAUSED_FILE:-/etc/mptcp-suite/paused}" ] || { echo ERROR=not_paused; exit 3; }; apply "$PGW" "$PDEV" "$PMET"; echo PAUSED_POLICY_ROUTE_OK=PRIMARY_FALLBACK ;;
- *) echo ERROR=invalid_mode; exit 4;;
-esac
+case "$MODE" in --dry-run) echo "PAUSED_POLICY_FAILOVER_DRY_RUN table=$TABLE primary=$PDEV secondary=$SDEV"; exit 0;; --secondary) G="$SGW"; D="$SDEV"; M="$SMET"; OK=SECONDARY;; --primary-fallback) G="$PGW"; D="$PDEV"; M="$PMET"; OK=PRIMARY_FALLBACK;; *) echo ERROR=invalid_mode; exit 4;; esac
+[ -e "${MPTCP_PAUSED_FILE:-/etc/mptcp-suite/paused}" ] || { echo ERROR=not_paused; exit 3; }
+exec 9>"$LOCK"; "$FLOCK" -n 9 || { echo ERROR=lock_busy; exit 5; }
+trap 'rm -f "$SNAP"' EXIT INT TERM
+apply "$G" "$D" "$M" || { echo ERROR=transaction_failed; exit 6; }
+echo "PAUSED_POLICY_ROUTE_OK=$OK"
