@@ -47,11 +47,21 @@ policy_cycle(){
  [ -r "$POLICY_STATE" ] && . "$POLICY_STATE" 2>/dev/null || true
  POK=0; SOK=0; probe "$PDEV" && POK=1; probe "$SDEV" && SOK=1
  if [ "$SOK" = 1 ]; then
-  SFC=0; SRC=$((SRC+1))
-  if [ "$PMODE" = primary ] && [ "$SRC" -ge "$REC" ]; then "$POLICY" --secondary || log ERROR=policy_secondary_restore; PMODE=secondary; SRC=0; fi
+  SFC=0
+  if [ "$PMODE" = primary ]; then
+   SRC=$((SRC+1))
+   if [ "$SRC" -ge "$REC" ]; then "$POLICY" --secondary || log ERROR=policy_secondary_restore; PMODE=secondary; SRC=0; fi
+  else
+   SRC=0
+  fi
  else
-  SRC=0; SFC=$((SFC+1))
-  if [ "$PMODE" = secondary ] && [ "$SFC" -ge "$FAIL" ] && [ "$POK" = 1 ]; then "$POLICY" --primary-fallback || log ERROR=policy_primary_fallback; PMODE=primary; SFC=0; fi
+  SRC=0
+  if [ "$PMODE" = secondary ]; then
+   SFC=$((SFC+1))
+   if [ "$SFC" -ge "$FAIL" ] && [ "$POK" = 1 ]; then "$POLICY" --primary-fallback || log ERROR=policy_primary_fallback; PMODE=primary; SFC=0; fi
+  else
+   SFC=0
+  fi
  fi
  T="$POLICY_STATE.tmp.$$"; printf 'SFC=%s\nSRC=%s\nPMODE=%s\n' "$SFC" "$SRC" "$PMODE" >"$T"; mv "$T" "$POLICY_STATE"
 }
