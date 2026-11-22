@@ -19,6 +19,8 @@ IP="${MPTCP_IP_BIN:-ip}"
 SS="${MPTCP_SS_BIN:-ss}"
 UCI="${MPTCP_UCI_BIN:-uci}"
 XRAY="${MPTCP_XRAY_BIN:-xray}"
+PAUSED_FAILOVER_SERVICE="${MPTCP_PAUSED_FAILOVER_SERVICE:-/etc/init.d/mptcp-paused-failover}"
+TRAFFIC_POLICY_SERVICE="${MPTCP_TRAFFIC_POLICY_SERVICE:-/etc/init.d/traffic-policy}"
 SNAP="$DIR/routing.snapshot"
 case "$MODE" in --dry-run) echo MPTCP_ACTIVATE_DRY_RUN; exit 0;; --apply) ;; *) echo ERROR=invalid_mode; exit 2;; esac
 [ -e "$PAUSED" ] || { echo ERROR=not_paused; exit 3; }
@@ -30,6 +32,8 @@ rollback(){
  MPTCP_DIRECT_SNAPSHOT_DIR="$DIR/direct" "$DRESTORE" --apply >/dev/null 2>&1 || true
  MPTCP_ROUTING_SNAPSHOT="$SNAP" "$RBACK" --apply >/dev/null 2>&1 || true
  touch "$PAUSED"
+ [ ! -x "$TRAFFIC_POLICY_SERVICE" ] || "$TRAFFIC_POLICY_SERVICE" reload >/dev/null 2>&1 || true
+ [ ! -x "$PAUSED_FAILOVER_SERVICE" ] || "$PAUSED_FAILOVER_SERVICE" start >/dev/null 2>&1 || true
  echo "MPTCP_ACTIVATE_ROLLBACK stage=$STAGE http=${code:-unset} endpoint=${ep:-unset} subflow=${sf:-unset}"
  exit 1
 }
@@ -43,6 +47,9 @@ while IFS="$(printf '\t')" read -r id cfg svc vt ft tunnel; do
  cp -p "$cfg" "$DIR/direct/$id.json" || rollback
  "$XRAY" run -test -c "$tunnel" >/dev/null 2>&1 || rollback
 done <"$MANIFEST"
+STAGE=direct_isolation
+[ ! -x "$PAUSED_FAILOVER_SERVICE" ] || "$PAUSED_FAILOVER_SERVICE" stop >/dev/null 2>&1 || rollback
+[ ! -x "$TRAFFIC_POLICY_SERVICE" ] || "$TRAFFIC_POLICY_SERVICE" stop >/dev/null 2>&1 || rollback
 rm -f "$PAUSED"
 STAGE=routing
 MPTCP_ROUTING_APPLY=1 MPTCP_ROUTING_SNAPSHOT="$SNAP" "$ROUTING" --apply >/tmp/mptcp-routing-apply.log 2>&1 || rollback

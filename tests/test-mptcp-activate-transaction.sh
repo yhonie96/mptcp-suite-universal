@@ -35,23 +35,23 @@ echo "generator $*" >>"$MOCK_LOG"
 printf 'table ip bsbf_bonding {}\n' >"$1"
 EOF
 chmod 755 "$D/bin/generator"
-for n in precheck routing rollback direct-restore restart reconnect sync curl ip ss xray nft uci; do cp "$D/bin/step" "$D/bin/$n"; chmod 755 "$D/bin/$n"; done
+for n in precheck routing rollback direct-restore restart reconnect sync curl ip ss xray nft uci paused-service traffic-service; do cp "$D/bin/step" "$D/bin/$n"; chmod 755 "$D/bin/$n"; done
 run(){
  env MOCK_LOG="$D/actions" MOCK_FAIL="${MOCK_FAIL:-}" MOCK_HTTP="${MOCK_HTTP:-204}" MOCK_SF="${MOCK_SF:-2}" MOCK_EP="${MOCK_EP:-2}" MOCK_LISTENER="${MOCK_LISTENER:-}" GEN_FAIL="${GEN_FAIL:-0}" \
  MPTCP_ACTIVATE_DIR="$D/work" MPTCP_MANIFEST="$D/manifest" MPTCP_PAUSED_FILE="$D/paused" \
  MPTCP_PRECHECK="$D/bin/precheck" MPTCP_ROUTING_EXEC="$D/bin/routing" MPTCP_ROUTING_ROLLBACK="$D/bin/rollback" \
  MPTCP_DIRECT_RESTORE="$D/bin/direct-restore" MPTCP_PROFILE_RESTART="$D/bin/restart" MPTCP_RECONNECT="$D/bin/reconnect" \
  MPTCP_SYNC_5M="$D/bin/sync" MPTCP_CURL_BIN="$D/bin/curl" MPTCP_IP_BIN="$D/bin/ip" MPTCP_SS_BIN="$D/bin/ss" MPTCP_NFT_BIN="$D/bin/nft" MPTCP_NFT_GENERATOR="$D/bin/generator" MPTCP_NFT_FILE="$D/bonding.nft" \
- MPTCP_UCI_BIN="$D/bin/uci" MPTCP_XRAY_BIN="$D/bin/xray" "$A" --apply
+ MPTCP_UCI_BIN="$D/bin/uci" MPTCP_XRAY_BIN="$D/bin/xray" MPTCP_PAUSED_FAILOVER_SERVICE="$D/bin/paused-service" MPTCP_TRAFFIC_POLICY_SERVICE="$D/bin/traffic-service" "$A" --apply
 }
 reset(){ printf paused >"$D/paused"; printf DIRECT_MAIN >"$D/main.json"; printf DIRECT_LIMIT >"$D/limit.json"; : >"$D/actions"; rm -rf "$D/work"; }
 reset; set +e; out="$(run 2>&1)"; rc=$?; set -e; echo "$out"; [ "$rc" -eq 0 ]; echo "$out" | grep -Fq MPTCP_ACTIVATE_OK
-[ ! -e "$D/paused" ]; grep -qx TUNNEL_MAIN "$D/main.json"; grep -Fq 'routing --apply SNAP=' "$D/actions"
+[ ! -e "$D/paused" ]; grep -Fq 'paused-service stop' "$D/actions"; grep -Fq 'traffic-service stop' "$D/actions"; grep -qx TUNNEL_MAIN "$D/main.json"; grep -Fq 'routing --apply SNAP=' "$D/actions"
 echo MPTCP_ACTIVATE_SUCCESS_OK
 for fail in precheck routing restart reconnect; do
  reset; set +e; out="$(MOCK_FAIL="$fail" run 2>&1)"; rc=$?; set -e
  [ "$rc" -ne 0 ]; [ -e "$D/paused" ]; echo "$out" | grep -Fq MPTCP_ACTIVATE_ROLLBACK
- grep -Fq 'direct-restore --apply' "$D/actions"; grep -Fq 'rollback --apply SNAP=' "$D/actions"
+ grep -Fq 'direct-restore --apply' "$D/actions"; grep -Fq 'rollback --apply SNAP=' "$D/actions"; grep -Fq 'traffic-service reload' "$D/actions"; grep -Fq 'paused-service start' "$D/actions"
  echo "MPTCP_ACTIVATE_${fail}_ROLLBACK_OK"
 done
 reset; set +e; out="$(MOCK_HTTP=000 run 2>&1)"; rc=$?; set -e

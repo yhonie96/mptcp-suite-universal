@@ -9,3 +9,12 @@ echo MPTCP_ACTIVATE_STRUCTURE_OK
 
 grep -Fq 'MPTCP_ROUTING_APPLY=1' "$F"
 grep -Fq 'mptcp-routing-apply.log' "$F"
+
+grep -Fq 'MPTCP_PAUSED_FAILOVER_SERVICE' "$F"
+grep -Fq 'MPTCP_TRAFFIC_POLICY_SERVICE' "$F"
+grep -Fq 'STAGE=direct_isolation' "$F"
+grep -Fq '"$PAUSED_FAILOVER_SERVICE" stop' "$F"
+grep -Fq '"$TRAFFIC_POLICY_SERVICE" stop' "$F"
+grep -Fq '"$TRAFFIC_POLICY_SERVICE" reload' "$F"
+grep -Fq '"$PAUSED_FAILOVER_SERVICE" start' "$F"
+echo MPTCP_ACTIVATE_DIRECT_ISOLATION_V14_OK
