@@ -8,7 +8,11 @@ case "$*" in *failover.enabled) echo "${ENABLED:-1}";; *primary_interface|*secon
 MOCK
 cat >"$D/ping" <<'MOCK'
 #!/bin/sh
-case "$*" in *eth1*) [ "${PHTTP:-204}" = 204 ];; *phy0-sta0*) [ "${SHTTP:-204}" = 204 ];; *) exit 1;; esac
+case "$*" in *eth1*) [ "${PICMP:-204}" = 204 ];; *phy0-sta0*) [ "${SICMP:-204}" = 204 ];; *) exit 1;; esac
+MOCK
+cat >"$D/curl" <<'MOCK'
+#!/bin/sh
+case "$*" in *eth1*) printf "%s" "${PHTTP:-204}";; *phy0-sta0*) printf "%s" "${SHTTP:-204}";; *) printf 000;; esac
 MOCK
 cat >"$D/ip" <<'MOCK'
 #!/bin/sh
@@ -21,7 +25,9 @@ echo "$2" >>"$ACTIONS"
 case "$2" in FAILOVER) echo secondary >"$MODE_FILE";; RESTORE) echo primary >"$MODE_FILE";; esac
 MOCK
 chmod 755 "$D/"*; echo primary >"$D/mode"; touch "$D/paused"; : >"$D/actions"
-run(){ env MPTCP_UCI_BIN="$D/uci" MPTCP_PING_BIN="$D/ping" MPTCP_IP_BIN="$D/ip" MPTCP_PAUSED_FAILOVER_ROUTE_BIN="$D/route" MPTCP_PAUSED_FILE="$D/paused" MPTCP_PAUSED_FAILOVER_STATE="$D/state" MPTCP_PAUSED_FAILOVER_ONCE=1 ACTIONS="$D/actions" MODE_FILE="$D/mode" PHTTP="${PHTTP:-204}" SHTTP="${SHTTP:-204}" ENABLED="${ENABLED:-1}" ROUTE_FAIL="${ROUTE_FAIL:-0}" "$M" --run; }
+run(){ env MPTCP_UCI_BIN="$D/uci" MPTCP_PING_BIN="$D/ping" MPTCP_CURL_BIN="$D/curl" MPTCP_IP_BIN="$D/ip" MPTCP_PAUSED_FAILOVER_ROUTE_BIN="$D/route" MPTCP_PAUSED_FILE="$D/paused" MPTCP_PAUSED_FAILOVER_STATE="$D/state" MPTCP_PAUSED_POLICY_STATE="$D/policy-state" MPTCP_PAUSED_FAILOVER_MONITOR_LOCK="$D/monitor.lock" MPTCP_PAUSED_FAILOVER_ONCE=1 ACTIONS="$D/actions" MODE_FILE="$D/mode" PHTTP="${PHTTP:-204}" SHTTP="${SHTTP:-204}" PICMP="${PICMP:-${PHTTP:-204}}" SICMP="${SICMP:-${SHTTP:-204}}" ENABLED="${ENABLED:-1}" ROUTE_FAIL="${ROUTE_FAIL:-0}" "$M" --run; }
+: >"$D/actions"; PICMP=000 PHTTP=204 run >/dev/null; PICMP=000 PHTTP=204 run >/dev/null; PICMP=000 PHTTP=204 run >/dev/null; ! grep -qx FAILOVER "$D/actions"
+: >"$D/actions"; PICMP=204 PHTTP=000 run >/dev/null; PICMP=204 PHTTP=000 run >/dev/null; PICMP=204 PHTTP=000 run >/dev/null; ! grep -qx FAILOVER "$D/actions"
 run >/dev/null; PHTTP=000 run >/dev/null; PHTTP=000 run >/dev/null; PHTTP=000 run >/dev/null
 grep -qx FAILOVER "$D/actions"; [ "$(cat "$D/mode")" = secondary ]
 # Restart derives secondary from route, not state
