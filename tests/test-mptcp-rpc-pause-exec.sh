@@ -26,7 +26,7 @@ echo "xray $*" >>"$MOCK_LOG"
 exit 0
 MOCK
 chmod 755 "$D/bin/ucode" "$D/bin/xray"
-for N in main-svc bsbf-bonding-nft mptcp-autoreconnect bsbf-endpoint-repair bsbf-mptcp; do cp "$D/bin/helper" "$D/init.d/$N"; chmod 755 "$D/init.d/$N"; done
+for N in main-svc bsbf-bonding-nft mptcp-autoreconnect bsbf-endpoint-repair bsbf-mptcp traffic-policy mptcp-paused-failover; do cp "$D/bin/helper" "$D/init.d/$N"; chmod 755 "$D/init.d/$N"; done
 run(){
  env MOCK_LOG="$D/actions" MOCK_FAIL="${MOCK_FAIL:-}" MPTCP_SUITE_DIR="$D/suite" \
  MPTCP_PROFILE_BACKUP="$D/bin/backup" MPTCP_PROFILE_RESTART="$D/bin/restart" \
@@ -44,6 +44,8 @@ grep -qx 'restart ' "$D/actions"
 CL="$(grep -n 'routing-clear --apply' "$D/actions" | cut -d: -f1)"
 RL="$(grep -n 'restart ' "$D/actions" | cut -d: -f1)"
 [ "$CL" -lt "$RL" ]
+grep -qx 'traffic-policy reload' "$D/actions"
+grep -qx 'mptcp-paused-failover start' "$D/actions"
 echo MPTCP_RPC_ACTIVE_TO_PAUSE_CLEAR_OK
 rm -f "$D/suite/paused"; : >"$D/actions"
 set +e; out="$(MOCK_FAIL=routing-clear run)"; rc=$?; set -e

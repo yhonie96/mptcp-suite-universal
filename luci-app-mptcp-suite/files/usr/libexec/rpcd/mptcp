@@ -130,6 +130,8 @@ direct_mode() {
   touch "$PAUSED"
   return 1
  fi
+ [ ! -x "$INITD/traffic-policy" ] || "$INITD/traffic-policy" reload >/dev/null 2>&1 || true
+ [ ! -x "$INITD/mptcp-paused-failover" ] || "$INITD/mptcp-paused-failover" start >/dev/null 2>&1 || true
 
  # Pemeriksaan internet hanya penasihat. Kegagalannya (mis. jabat
  # tangan TLS ke endpoint pemeriksa terputus sesaat di jalur Direct)
