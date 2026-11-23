@@ -193,3 +193,6 @@ Controlled dual-ICMP failure triggered failover to phy0-sta0. After rules cleare
 
 ### HTTP-aware probe tests passed Sun Nov 22 22:07 WIB 2026
 Root cause confirmed: eth1 HTTPS=204 while both ICMP probes failed, blocking recovery. Monitor now accepts HTTP 204 OR either ICMP probe. Independent HTTP/ICMP regressions passed. Effective full suite 75/75 passed; diff check clean. Monitor hash=75fe9767ac758404938d5f281cefe4daab4884126a32715b6fa8776a5de4af97. Runtime unchanged; still paused; do not Resume.
+
+### Conditional isolation rollback passed Mon Nov 23 22:58 WIB 2026
+Activation rollback now restores paused-failover and traffic-policy only after their isolation begins. Precheck failure changes neither service. Partial stop failures restore only affected components. Transaction tests and full suite 75/75 passed; diff check clean. Runtime unchanged; still paused; do not Resume.

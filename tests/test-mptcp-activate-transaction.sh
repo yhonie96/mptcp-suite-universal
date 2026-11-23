@@ -48,7 +48,25 @@ reset(){ printf paused >"$D/paused"; printf DIRECT_MAIN >"$D/main.json"; printf 
 reset; set +e; out="$(run 2>&1)"; rc=$?; set -e; echo "$out"; [ "$rc" -eq 0 ]; echo "$out" | grep -Fq MPTCP_ACTIVATE_OK
 [ ! -e "$D/paused" ]; grep -Fq 'paused-service stop' "$D/actions"; grep -Fq 'traffic-service stop' "$D/actions"; grep -qx TUNNEL_MAIN "$D/main.json"; grep -Fq 'routing --apply SNAP=' "$D/actions"
 echo MPTCP_ACTIVATE_SUCCESS_OK
-for fail in precheck routing restart reconnect; do
+reset; set +e; out="$(MOCK_FAIL=precheck run 2>&1)"; rc=$?; set -e
+[ "$rc" -ne 0 ]; [ -e "$D/paused" ]; echo "$out" | grep -Fq MPTCP_ACTIVATE_ROLLBACK
+if grep -Eq "paused-service (stop|start)|traffic-service (stop|reload)" "$D/actions"; then echo ERROR=precheck_service_changed; exit 1; fi
+echo MPTCP_ACTIVATE_PRECHECK_NO_SERVICE_CHANGE_OK
+reset; set +e; out="$(MOCK_FAIL=paused-service run 2>&1)"; rc=$?; set -e
+[ "$rc" -ne 0 ]; grep -Fq "paused-service stop" "$D/actions"; grep -Fq "paused-service start" "$D/actions"
+! grep -Fq "traffic-service reload" "$D/actions"
+echo MPTCP_ACTIVATE_PAUSED_STOP_PARTIAL_OK
+reset
+set +e
+MOCK_FAIL=traffic-service run >/dev/null 2>&1
+rc=$?
+set -e
+[ "$rc" -ne 0 ]
+grep -Fq "traffic-service stop" "$D/actions"
+grep -Fq "traffic-service reload" "$D/actions"
+grep -Fq "paused-service start" "$D/actions"
+echo MPTCP_ACTIVATE_TRAFFIC_STOP_PARTIAL_OK
+for fail in routing restart reconnect; do
  reset; set +e; out="$(MOCK_FAIL="$fail" run 2>&1)"; rc=$?; set -e
  [ "$rc" -ne 0 ]; [ -e "$D/paused" ]; echo "$out" | grep -Fq MPTCP_ACTIVATE_ROLLBACK
  grep -Fq 'direct-restore --apply' "$D/actions"; grep -Fq 'rollback --apply SNAP=' "$D/actions"; grep -Fq 'traffic-service reload' "$D/actions"; grep -Fq 'paused-service start' "$D/actions"
