@@ -93,7 +93,7 @@ return view.extend({
      ]),
      E('div',{class:'ms-desc'},
       active
-       ? 'HTTP, HTTPS, YouTube, dan trafik umum diamankan melalui VPS menggunakan gabungan jalur MPTCP.'
+       ? 'HTTP, HTTPS, dan trafik aplikasi umum diamankan melalui VPS menggunakan gabungan jalur MPTCP.'
        : 'Tunnel VPS dihentikan. Trafik keluar langsung melalui ISP berdasarkan aturan setiap jalur.'),
      E('div',{class:'ms-stats'},[
       stat('Internet',internet?'Normal':'Gangguan',internet),

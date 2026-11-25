@@ -68,7 +68,7 @@ function runPreview(name) {
     E('li', {}, 'File UI: ' + result.ui),
     E('li', {}, 'Backend RPC: ' + result.rpc),
     E('li', {}, 'ACL: ' + result.acl),
-    E('li', {}, 'Pengaturan BSBF: ' +
+    E('li', {}, 'Pengaturan bonding/cadangan (BSBF): ' +
      (result.bsbf ? 'tersedia' : 'tidak tersedia')),
     E('li', {}, 'Jaringan: DIKUNCI'),
     E('li', {}, 'Xray aktif: DIKUNCI')
