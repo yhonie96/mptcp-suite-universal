@@ -199,3 +199,6 @@ Activation rollback now restores paused-failover and traffic-policy only after t
 
 ### Native endpoint daemon and client limit sync Wed Nov 25 21:14:26 WIB 2026
 Replaced bsbf-endpoint-repair with native mptcp-endpoint-daemon and mptcp-client-limit-sync; removed +bsbf-bonding dependency from luci-app-mptcp-suite; 77/77 tests passed. Installed on router with backup; bsbf-endpoint-repair removed; runtime remains paused/Direct with defaults 7/9, table101 on phy0-sta0, and HTTP=204. Do not Resume until new VLESS Reality profiles are configured.
+
+### Hardened paused direct mode and reboot verified Wed Nov 25 22:04 WIB 2026
+Committed 7d1813d on fix/pause-managed-clear replacing directory lock with fd flock in traffic-policy-apply, making post-restart DNS wait offline-safe, aligning /etc/init.d/traffic-policy rule 99 setup, and restoring empty/unknown policy table 101 immediately in paused-failover-monitor; 78/78 unit tests passed and files matched live router via sha256sum. Post-reboot runtime verified with paused=1, S99traffic-policy APPLY_OK rules=4, defaults eth1-7/phy0-sta0-9, table 101 on phy0-sta0, active manual_1-manu
