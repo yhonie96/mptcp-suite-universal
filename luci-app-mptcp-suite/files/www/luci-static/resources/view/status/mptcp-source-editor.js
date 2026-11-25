@@ -91,7 +91,7 @@ return view.extend({
     E('div',{class:'se-actions'},[
      E('button',{class:'btn cbi-button',click:function(){
       return save(source.value,Number(metric.value),enabled.checked).then(note);
-     }},'Simpan Draft'),
+     }},'Simpan Draf'),
 
      E('button',{class:'btn cbi-button',click:function(){
       return validate().then(note);
@@ -104,7 +104,7 @@ return view.extend({
 
      E('button',{class:'btn cbi-button-negative',click:function(){
       return discard().then(note);
-     }},'Batalkan Draft')
+     }},'Batalkan Draf')
     ]),
 
     E('div',{class:'se-draft'},

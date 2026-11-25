@@ -92,11 +92,11 @@ E('div', { class: 'x-summary' }, [
 E('h3', {}, data.xray ? 'Xray Aktif' : 'Xray Tidak Aktif'),
 E('div', {}, 'Tujuan aktif: ' + (data.server || '-')),
 E('div', {}, 'SNI: ' + (data.sni || '-')),
-E('div', {}, 'Draft: ' + (data.draft ? 'Tersedia' : 'Belum ada'))
+E('div', {}, 'Draf: ' + (data.draft ? 'Tersedia' : 'Belum ada'))
 ]),
 
 E('div', { class: 'x-note' },
-'Semua nilai akun aktif ditampilkan. Perubahan dibuat sebagai draft dan tidak langsung diterapkan.'),
+'Semua nilai akun aktif ditampilkan. Perubahan dibuat sebagai draf dan tidak langsung diterapkan.'),
 
 E('div', { class: 'x-card' }, [
 E('h3', {}, 'Kelola Akun Aktif'),
@@ -143,13 +143,13 @@ class: 'btn cbi-button cbi-button-action',
 click: function() {
 return validateDraft().then(function(r){notify(r);if(r.ok)setTimeout(function(){window.location.reload();},800);});
 }
-}, 'Validasi Draft'),
+}, 'Validasi Draf'),
 
 E('button', Object.assign({
 class: 'btn cbi-button cbi-button-apply',
 click: function() {
 if (!confirm(
-'Terapkan draft Xray utama?\n\n' +
+'Terapkan draf Xray utama?\n\n' +
 'Snapshot dan rollback otomatis akan digunakan.'
 ))
 return;
@@ -170,11 +170,11 @@ window.location.reload();
 E('button', {
 class: 'btn cbi-button cbi-button-negative',
 click: function() {
-if (!confirm('Hapus draft akun Xray?'))
+if (!confirm('Hapus draf akun Xray?'))
 return;
 return discardDraft().then(function(r){notify(r);if(r.ok)setTimeout(function(){window.location.reload();},800);});
 }
-}, 'Hapus Draft')
+}, 'Hapus Draf')
 ])
 ])
 ]);

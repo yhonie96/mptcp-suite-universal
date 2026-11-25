@@ -101,10 +101,10 @@ function globalPanel(data) {
   E("div",{class:"tr-setting"},[E("span",{},"Blokir iklan"),a]),
   E("div",{class:"tr-setting"},[E("span",{},"Blokir QUIC (UDP 443)"),q]),
   E("div",{class:"tr-actions"},[
-   E("button",{type:"button",class:"btn cbi-button-action",click:save},"Simpan Draft"),
+   E("button",{type:"button",class:"btn cbi-button-action",click:save},"Simpan Draf"),
    E("button",{type:"button",class:"btn",click:function(){return validateDraft().then(notify);}},"Validasi"),
    E("button",{type:"button",class:"btn cbi-button-positive",click:function(){return applyDraft().then(function(r){notify(r);if(r.ok)location.reload();});}},"Terapkan"),
-   E("button",{type:"button",class:"btn cbi-button-negative",click:function(){return discardDraft().then(function(r){notify(r);if(r.ok)location.reload();});}},"Batalkan Draft")
+   E("button",{type:"button",class:"btn cbi-button-negative",click:function(){return discardDraft().then(function(r){notify(r);if(r.ok)location.reload();});}},"Batalkan Draf")
   ])
  ]);
 }

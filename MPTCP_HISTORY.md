@@ -211,3 +211,6 @@ Standardized UI copy to neutral Indonesian (reserving US English spelling for co
 
 ### Universal limited Xray profile UI and full test suite pass recorded Wed Nov 25 22:56:32 WIB 2026
 Generalized remaining user-facing labels in xray-5mbps-manager.js ("Profil Xray Terbatas" / "Xray profil terbatas") while preserving RPC object and UCI identifiers, synced to /www/luci-static/resources/view/status/xray-5mbps-manager.js with verified sha256sum, aligned UI label assertions in test-luci-app-mptcp-suite.sh and test-xray-profiles-diversion-role-ui.sh, verified all 78/78 tests passing, and kept paused Direct mode running undisturbed.
+
+### Standardized Indonesian Draf spelling across LuCI views recorded Wed Nov 25 23:02:03 WIB 2026
+Standardized remaining user-facing "Draft" labels to standard Indonesian "Draf" across mptcp-source-editor.js, xray-manager.js, xray-5mbps-manager.js, and xray-traffic-rules.js while keeping RPC methods and JSON keys intact, synced all four view files to /www/luci-static/resources/view/status/ with verified sha256sum hashes, verified all 78/78 tests passing, and kept paused Direct mode running undisturbed.

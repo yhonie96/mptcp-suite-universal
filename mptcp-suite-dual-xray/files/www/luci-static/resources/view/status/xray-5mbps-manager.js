@@ -89,7 +89,7 @@ return view.extend({
      server.node,serverPort.node,uuid.node,sni.node,key.node,shortId.node,fp.node
     ]),
     E('p',{},[
-     E('strong',{},'Draft: '),
+     E('strong',{},'Draf: '),
      data.draft?'TERSEDIA':'BELUM ADA'
     ]),
     E('div',{class:'x5-actions'},[
@@ -128,7 +128,7 @@ return view.extend({
      E('button',{class:'btn cbi-button cbi-button-negative',click:function(){
       if(!confirm('Hapus draf Xray profil terbatas?'))return;
       return discard().then(function(r){notify(r);if(r.ok)location.reload();});
-     }},'Hapus Draft')
+     }},'Hapus Draf')
     ])
    ])
   ]);
