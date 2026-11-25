@@ -2,30 +2,42 @@
 START=99
 STOP=88
 
-wait_dns() {
- i=0
- while [ "$i" -lt 12 ]; do
-  ss -lnt | grep -q '127.0.0.1:1053' &&
-  nslookup google.com 127.0.0.1 >/dev/null 2>&1 &&
-  return 0
-  i=$((i+1))
-  sleep 5
- done
- return 1
+install_rule() {
+ enabled="$(uci -q get traffic_policy.main.enabled || true)"
+ [ "$enabled" = 1 ] || return 1
+ mark="$(uci -q get traffic_policy.main.mark_wwan || true)"
+ table="$(uci -q get traffic_policy.main.table_wwan || true)"
+ [ -n "$mark" ] && [ -n "$table" ] || return 1
+
+ while ip rule del priority 99 2>/dev/null; do :; done
+ ip rule add priority 99 fwmark "$mark/0x1ff" lookup "$table"
+ ip route flush cache
+}
+
+remove_rule() {
+ while ip rule del priority 99 2>/dev/null; do :; done
+ ip route flush cache
 }
 
 start() {
- wait_dns || {
-  logger -t traffic-policy "DNS belum siap; penerapan dilewati"
+ if ! install_rule; then
+  remove_rule
+  nft delete table ip traffic_policy 2>/dev/null || true
   return 0
- }
- /usr/sbin/traffic-policy-apply
+ fi
+ /usr/sbin/traffic-policy-apply || logger -t traffic-policy "penerapan awal gagal; akan dicoba ulang saat reload"
 }
 
 reload() {
+ if ! install_rule; then
+  remove_rule
+  nft delete table ip traffic_policy 2>/dev/null || true
+  return 0
+ fi
  /usr/sbin/traffic-policy-apply
 }
 
 stop() {
+ remove_rule
  nft delete table ip traffic_policy 2>/dev/null || true
 }

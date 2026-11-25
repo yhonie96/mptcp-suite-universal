@@ -2,11 +2,17 @@
 set -e
 . /lib/functions.sh
 
-BASE=/etc/traffic-policy
-LOCK=/tmp/traffic-policy.lock
+BASE="${MPTCP_TRAFFIC_POLICY_BASE:-/etc/traffic-policy}"
+LOCK="${MPTCP_TRAFFIC_POLICY_LOCK:-/tmp/traffic-policy.apply.lock}"
+STALE_DIR_LOCK="/tmp/traffic-policy.lock"
+DNSMASQ_INIT="${MPTCP_TRAFFIC_POLICY_DNSMASQ_INIT:-/etc/init.d/dnsmasq}"
+GEN_BIN="${MPTCP_TRAFFIC_POLICY_GENERATE:-/usr/sbin/traffic-policy-generate}"
+VAL_BIN="${MPTCP_TRAFFIC_POLICY_VALIDATE:-/usr/sbin/traffic-policy-validate}"
 R="$BASE/rollback"
-mkdir "$LOCK" 2>/dev/null || { echo APPLY_BUSY; exit 2; }
-trap 'rmdir "$LOCK" 2>/dev/null' EXIT
+
+[ -d "$STALE_DIR_LOCK" ] && rmdir "$STALE_DIR_LOCK" 2>/dev/null || true
+exec 9>"$LOCK"
+flock -n 9 || { echo APPLY_BUSY; exit 2; }
 mkdir -p "$R"
 
 cp -af /etc/config/dhcp "$R/dhcp"
@@ -16,23 +22,27 @@ rollback(){
  cp -af "$R/dhcp" /etc/config/dhcp
  nft delete table ip traffic_policy 2>/dev/null || true
  [ ! -s "$R/runtime.nft" ] || nft -f "$R/runtime.nft"
- /etc/init.d/dnsmasq restart >/dev/null 2>&1 || true
+ "$DNSMASQ_INIT" restart >/dev/null 2>&1 || true
  echo APPLY_ROLLBACK
  exit 1
 }
 
 wait_dns(){
+ [ "${MPTCP_SKIP_DNS_WAIT:-0}" = 1 ] && return 0
  W=0
- while [ "$W" -lt 12 ]; do
-  nslookup google.com 127.0.0.1 >/dev/null 2>&1 && return 0
+ while [ "$W" -lt 10 ]; do
+  if pgrep -x dnsmasq >/dev/null 2>&1; then
+   nslookup localhost 127.0.0.1 >/dev/null 2>&1 && return 0
+   ss -lnu 2>/dev/null | grep -q ':53 ' && return 0
+  fi
   W=$((W+1))
-  sleep 2
+  sleep 1
  done
  return 1
 }
 
-/usr/sbin/traffic-policy-validate || rollback
-/usr/sbin/traffic-policy-generate >/dev/null || rollback
+"$VAL_BIN" || rollback
+"$GEN_BIN" >/dev/null || rollback
 sed 's/traffic_policy_test/traffic_policy/g' \
  /tmp/traffic-policy-test.nft >/tmp/traffic-policy-runtime.nft
 
@@ -69,7 +79,7 @@ config_foreach add_rule rule
 uci commit dhcp
 
 nft -f /tmp/traffic-policy-transaction.nft || rollback
-/etc/init.d/dnsmasq restart >/dev/null 2>&1 || rollback
+"$DNSMASQ_INIT" restart >/dev/null 2>&1 || rollback
 wait_dns || rollback
 
 echo "APPLY_OK rules=$N"

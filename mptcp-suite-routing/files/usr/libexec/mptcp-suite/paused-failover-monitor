@@ -4,6 +4,7 @@ UCI="${MPTCP_UCI_BIN:-uci}"; PING="${MPTCP_PING_BIN:-ping}"; IP="${MPTCP_IP_BIN:
 ROUTE="${MPTCP_PAUSED_FAILOVER_ROUTE_BIN:-/usr/libexec/mptcp-suite/paused-failover-route}"
 POLICY="${MPTCP_PAUSED_POLICY_FAILOVER_BIN:-/usr/libexec/mptcp-suite/paused-policy-failover}"
 POLICY_STATE="${MPTCP_PAUSED_POLICY_STATE:-/tmp/mptcp-paused-policy.state}"
+POLICY_TABLE="${MPTCP_POLICY_TABLE:-101}"
 PAUSED="${MPTCP_PAUSED_FILE:-/etc/mptcp-suite/paused}"; STATE="${MPTCP_PAUSED_FAILOVER_STATE:-/tmp/mptcp-paused-failover.state}"
 ONCE="${MPTCP_PAUSED_FAILOVER_ONCE:-0}"; COMMAND="${1:---run}"
 LOCK="${MPTCP_PAUSED_FAILOVER_MONITOR_LOCK:-/tmp/mptcp-paused-failover-monitor.lock}"
@@ -30,6 +31,15 @@ actual_mode(){
  R="$("$IP" route get 8.8.8.8 2>/dev/null || true)"
  case "$R" in *"via $PGW dev $PDEV"*) echo primary;; *"via $SGW dev $SDEV"*) echo secondary;; *) echo unknown;; esac
 }
+actual_policy_mode(){
+ PR="$("$IP" route show table "$POLICY_TABLE" 2>/dev/null || true)"
+ case "$PR" in
+  *"default via $SGW dev $SDEV"*) echo secondary;;
+  *"default via $PGW dev $PDEV"*) echo primary;;
+  *"default "*) echo unknown;;
+  *) echo empty;;
+ esac
+}
 read_counts(){
  FC=0; RC=0
  [ -r "$STATE" ] || return 0
@@ -47,8 +57,18 @@ restore_primary(){
 policy_cycle(){
  SFC=0; SRC=0; PMODE=secondary
  [ -r "$POLICY_STATE" ] && . "$POLICY_STATE" 2>/dev/null || true
+ ACT_PMODE="$(actual_policy_mode)"
+ if [ "$ACT_PMODE" = primary ] || [ "$ACT_PMODE" = secondary ]; then
+  PMODE="$ACT_PMODE"
+ fi
  POK=0; SOK=0; probe "$PDEV" && POK=1; probe "$SDEV" && SOK=1
- if [ "$SOK" = 1 ]; then
+ if [ "$ACT_PMODE" = unknown ] || [ "$ACT_PMODE" = empty ]; then
+  if [ "$SOK" = 1 ]; then
+   "$POLICY" --secondary >/dev/null 2>&1 && PMODE=secondary && SFC=0 && SRC=0 || log ERROR=policy_secondary_restore
+  elif [ "$POK" = 1 ]; then
+   "$POLICY" --primary-fallback >/dev/null 2>&1 && PMODE=primary && SFC=0 && SRC=0 || log ERROR=policy_primary_fallback
+  fi
+ elif [ "$SOK" = 1 ]; then
   SFC=0
   if [ "$PMODE" = primary ]; then
    SRC=$((SRC+1))
@@ -74,14 +94,14 @@ cycle(){
  MODE="$(actual_mode)"; [ "$MODE" != unknown ] || { log ERROR=route_state_unknown; return 1; }
  read_counts
  if [ "$MODE" = primary ]; then
-  RC=0; if probe "$PDEV"; then FC=0; else FC=$((FC+1)); fi
+  RC=0; if [ "$POK" = 1 ]; then FC=0; else FC=$((FC+1)); fi
   if [ "$FC" -ge "$FAIL" ]; then
-   probe "$SDEV" || { log KEEP=both_unhealthy; save; return; }
+   [ "$SOK" = 1 ] || { log KEEP=both_unhealthy; save; return; }
    MPTCP_PAUSED_FAILOVER_APPLY=1 "$ROUTE" --apply FAILOVER "$PDEV" "$PGW" "$PMET" "$SDEV" "$SGW" "$SMET" "$URL" "$PROBE_IP_PRIMARY" "$PROBE_IP_SECONDARY" || { log ERROR=failover_transaction; save; return 1; }
    FC=0; RC=0; log STATE=secondary
   fi
  else
-  FC=0; if probe "$PDEV"; then RC=$((RC+1)); else RC=0; fi
+  FC=0; if [ "$POK" = 1 ]; then RC=$((RC+1)); else RC=0; fi
   if [ "$RC" -ge "$REC" ]; then
    MPTCP_PAUSED_FAILOVER_APPLY=1 "$ROUTE" --apply RESTORE "$PDEV" "$PGW" "$PMET" "$SDEV" "$SGW" "$SMET" "$URL" "$PROBE_IP_PRIMARY" "$PROBE_IP_SECONDARY" || { log ERROR=restore_transaction; save; return 1; }
    FC=0; RC=0; log STATE=primary
