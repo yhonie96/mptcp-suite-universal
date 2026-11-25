@@ -21,6 +21,7 @@ endef
 
 define Package/mptcp-suite-dual-xray/install
 	$(CP) ./files/* $(1)/
+	chmod 600 $(1)/etc/xray-dns/config.json
 endef
 
 $(eval $(call BuildPackage,mptcp-suite-dual-xray))

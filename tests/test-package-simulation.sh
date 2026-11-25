@@ -10,7 +10,7 @@ test -x "$D/usr/bin/update-xray-geodata"
 test -f "$D/etc/xray-dns/config.json"
 test -f "$D/etc/uci-defaults/99-mptcp-xray-geodata"
 test "$(grep -c update-xray-geodata "$D/etc/uci-defaults/99-mptcp-xray-geodata")" = 1
-test "$(ls -l "$D/etc/xray-dns/config.json" | awk '{print $1}')" = "-rw-------"
+grep -Fq 'chmod 600 $(1)/etc/xray-dns/config.json' mptcp-suite-dual-xray/Makefile
 grep -Fq "/etc/xray-dns/config.json" mptcp-suite-dual-xray/Makefile
 grep -Fq "+curl" mptcp-suite-dual-xray/Makefile
 test "$(jq -r '.dns.hosts["geosite:category-ads-all"]' "$D/etc/xray-dns/config.json")" = "#3"
