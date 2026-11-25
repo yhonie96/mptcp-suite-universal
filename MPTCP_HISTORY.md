@@ -214,3 +214,6 @@ Generalized remaining user-facing labels in xray-5mbps-manager.js ("Profil Xray 
 
 ### Standardized Indonesian Draf spelling across LuCI views recorded Wed Nov 25 23:02:03 WIB 2026
 Standardized remaining user-facing "Draft" labels to standard Indonesian "Draf" across mptcp-source-editor.js, xray-manager.js, xray-5mbps-manager.js, and xray-traffic-rules.js while keeping RPC methods and JSON keys intact, synced all four view files to /www/luci-static/resources/view/status/ with verified sha256sum hashes, verified all 78/78 tests passing, and kept paused Direct mode running undisturbed.
+
+### Added US English README.md and verified test suite recorded Wed Nov 25 23:07:37 WIB 2026
+Created README.md in US English documenting package layout, language and contract standards, and test execution, verified all 78/78 tests passing, and kept paused Direct mode running undisturbed.
