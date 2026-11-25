@@ -69,7 +69,7 @@ SOURCE_UI="$P/files/www/luci-static/resources/view/status/mptcp-source-editor.js
 grep -Fq 'Atur sumber koneksi dengan aman' "$SOURCE_UI"
 grep -Fq 'DIDUKUNG' "$SOURCE_UI"
 grep -Fq 'BELUM TERDETEKSI' "$SOURCE_UI"
-grep -Fq 'Tidak ada draft perubahan.' "$SOURCE_UI"
+grep -Fq 'Tidak ada draf perubahan.' "$SOURCE_UI"
 grep -Fq 'Rollback otomatis' "$SOURCE_UI"
 echo MODERN_SOURCE_EDITOR_TEST_OK
 
@@ -86,7 +86,7 @@ BACKUP_UI="$P/files/www/luci-static/resources/view/status/mptcp-backup.js"
 grep -Fq 'linear-gradient(135deg,#4338ca,#2563eb)' "$BACKUP_UI"
 grep -Fq 'backup-create' "$BACKUP_UI"
 grep -Fq 'Restore Aman' "$BACKUP_UI"
-grep -Fq 'Restore UI/BSBF' "$BACKUP_UI"
+grep -Fq 'Pulihkan UI & Pengaturan' "$BACKUP_UI"
 grep -Fq 'izin file 600' "$BACKUP_UI"
 echo MODERN_BACKUP_UI_TEST_OK
 R="$P/files/usr/sbin/mptcp-endpoint-daemon"

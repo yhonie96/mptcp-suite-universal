@@ -74,7 +74,7 @@ return view.extend({
 `),
    E('h2',{},'Kelola Akun Profil'),
    E('div',{class:'x5-summary'},[
-    E('div',{style:'font-size:20px;font-weight:700'},'Profil Xray 5 Mbps'),
+    E('div',{style:'font-size:20px;font-weight:700'},'Profil Xray Terbatas'),
     E('div',{},'Port lokal '+data.local_port+' · Tujuan '+data.server)
    ]),
    E('div',{class:'x5-card'},[
@@ -113,11 +113,11 @@ return view.extend({
       class:'btn cbi-button cbi-button-apply',
       click:function(){
        if(!confirm(
-        'Terapkan draft Xray 5 Mbps?\n\n' +
+        'Terapkan draf Xray profil terbatas?\n\n' +
         'Snapshot dan rollback otomatis akan digunakan.'
        ))return;
        if(!confirm(
-        'Konfirmasi terakhir. Xray 5 Mbps akan restart sementara.'
+        'Konfirmasi terakhir. Xray profil terbatas akan mulai ulang sementara.'
        ))return;
        return applySafe().then(function(r){
         notify(r);
@@ -126,7 +126,7 @@ return view.extend({
       }
      },data.draft?{}:{disabled:'disabled'}),'Terapkan Aman'),
      E('button',{class:'btn cbi-button cbi-button-negative',click:function(){
-      if(!confirm('Hapus draft Xray 5 Mbps?'))return;
+      if(!confirm('Hapus draf Xray profil terbatas?'))return;
       return discard().then(function(r){notify(r);if(r.ok)location.reload();});
      }},'Hapus Draft')
     ])
