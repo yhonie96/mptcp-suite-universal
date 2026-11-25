@@ -160,7 +160,7 @@ PY
     [ -e "/usr/share/rpcd/acl.d/luci-app-netcontrol-profiles.json" ] && echo "usr/share/rpcd/acl.d/luci-app-netcontrol-profiles.json" >>"$SNAPLIST"
     [ -e "/usr/share/rpcd/ucode/netcontrol.uc" ] && echo "usr/share/rpcd/ucode/netcontrol.uc" >>"$SNAPLIST"
     [ -e "/usr/bin/netcontrolctl" ] && echo "usr/bin/netcontrolctl" >>"$SNAPLIST"
-    [ -e "/usr/lib/netcontrol/bsbf-5mbps-sync.sh" ] && echo "usr/lib/netcontrol/bsbf-5mbps-sync.sh" >>"$SNAPLIST"
+    [ -e "/usr/sbin/mptcp-client-limit-sync" ] && echo "usr/sbin/mptcp-client-limit-sync" >>"$SNAPLIST"
     [ -e "/www/luci-static/resources/view/netcontrol/devices.js" ] && echo "www/luci-static/resources/view/netcontrol/devices.js" >>"$SNAPLIST"
     tar -C / -czf "$snap" -T "$SNAPLIST" || {
      rm -f "$snap" "$SNAPLIST"
@@ -201,7 +201,7 @@ usr/share/rpcd/acl.d/luci-app-xray-profile-runtime.json
 usr/share/rpcd/acl.d/luci-app-netcontrol-profiles.json
 usr/share/rpcd/ucode/netcontrol.uc
 usr/bin/netcontrolctl
-usr/lib/netcontrol/bsbf-5mbps-sync.sh
+usr/sbin/mptcp-client-limit-sync
 www/luci-static/resources/view/netcontrol/devices.js
 "
 
@@ -222,7 +222,7 @@ www/luci-static/resources/view/netcontrol/devices.js
      /usr/libexec/rpcd/xray* \
      /usr/libexec/rpcd/netcontrol-profiles \
      /usr/bin/netcontrolctl \
-     /usr/lib/netcontrol/bsbf-5mbps-sync.sh 2>/dev/null
+     /usr/sbin/mptcp-client-limit-sync 2>/dev/null
 
     rm -rf "$tmp" "$list"
     rm -f /tmp/luci-indexcache

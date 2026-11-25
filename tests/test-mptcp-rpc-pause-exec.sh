@@ -15,6 +15,11 @@ echo "${0##*/} $*" >>"$MOCK_LOG"
 exit 0
 MOCK
 for N in snapshot backup restart routing-clear nft ip; do cp "$D/bin/helper" "$D/bin/$N"; chmod 755 "$D/bin/$N"; done
+cat >"$D/bin/curl" <<'MOCK'
+#!/bin/sh
+echo "curl $*" >>"$MOCK_LOG"
+printf 204
+MOCK
 cat >"$D/bin/ucode" <<'MOCK'
 #!/bin/sh
 echo "ucode $*" >>"$MOCK_LOG"
@@ -25,14 +30,14 @@ cat >"$D/bin/xray" <<'MOCK'
 echo "xray $*" >>"$MOCK_LOG"
 exit 0
 MOCK
-chmod 755 "$D/bin/ucode" "$D/bin/xray"
-for N in main-svc bsbf-bonding-nft mptcp-autoreconnect bsbf-endpoint-repair bsbf-mptcp traffic-policy mptcp-paused-failover; do cp "$D/bin/helper" "$D/init.d/$N"; chmod 755 "$D/init.d/$N"; done
+chmod 755 "$D/bin/curl" "$D/bin/ucode" "$D/bin/xray"
+for N in main-svc bsbf-bonding-nft mptcp-autoreconnect mptcp-endpoint-daemon traffic-policy mptcp-paused-failover; do cp "$D/bin/helper" "$D/init.d/$N"; chmod 755 "$D/init.d/$N"; done
 run(){
  env MOCK_LOG="$D/actions" MOCK_FAIL="${MOCK_FAIL:-}" MPTCP_SUITE_DIR="$D/suite" \
  MPTCP_PROFILE_BACKUP="$D/bin/backup" MPTCP_PROFILE_RESTART="$D/bin/restart" \
  MPTCP_DIRECT_SNAPSHOT="$D/bin/snapshot" MPTCP_ROUTING_CLEAR="$D/bin/routing-clear" \
  MPTCP_UCODE_BIN="$D/bin/ucode" MPTCP_XRAY_BIN="$D/bin/xray" MPTCP_INITD_DIR="$D/init.d" \
- MPTCP_NFT_BIN="$D/bin/nft" MPTCP_IP_BIN="$D/bin/ip" "$F" call pause
+ MPTCP_CURL_BIN="$D/bin/curl" MPTCP_NFT_BIN="$D/bin/nft" MPTCP_IP_BIN="$D/bin/ip" "$F" call pause
 }
 : >"$D/actions"
 out="$(run)"

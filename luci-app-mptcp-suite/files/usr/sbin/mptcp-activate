@@ -10,9 +10,9 @@ RBACK="${MPTCP_ROUTING_ROLLBACK:-/usr/libexec/mptcp-suite/routing-rollback}"
 DRESTORE="${MPTCP_DIRECT_RESTORE:-/usr/sbin/mptcp-direct-restore}"
 RESTART="${MPTCP_PROFILE_RESTART:-/usr/sbin/mptcp-profile-restart}"
 RECONNECT="${MPTCP_RECONNECT:-/usr/sbin/mptcp-reconnect}"
-SYNC="${MPTCP_SYNC_5M:-/usr/lib/netcontrol/bsbf-5mbps-sync.sh}"
+SYNC="${MPTCP_SYNC_5M:-/usr/sbin/mptcp-client-limit-sync}"
 NFT="${MPTCP_NFT_BIN:-nft}"
-NFT_FILE="${MPTCP_NFT_FILE:-$DIR/bsbf_bonding.nft}"
+NFT_FILE="${MPTCP_NFT_FILE:-$DIR/mptcp_tproxy.nft}"
 NFT_GENERATOR="${MPTCP_NFT_GENERATOR:-/usr/libexec/mptcp-suite/tproxy-nft-generate}"
 CURL="${MPTCP_CURL_BIN:-curl}"
 IP="${MPTCP_IP_BIN:-ip}"
@@ -29,8 +29,9 @@ case "$MODE" in --dry-run) echo MPTCP_ACTIVATE_DRY_RUN; exit 0;; --apply) ;; *) 
 [ -s "$MANIFEST" ] || { echo ERROR=missing_manifest; exit 4; }
 rm -rf "$DIR"; mkdir -p "$DIR/direct"
 rollback(){
+ "$NFT" delete table ip mptcp_tproxy >/dev/null 2>/dev/null || true
  "$NFT" delete table ip bsbf_bonding >/dev/null 2>/dev/null || true
- /etc/init.d/bsbf-mptcp stop >/dev/null 2>/dev/null || true
+ /etc/init.d/mptcp-endpoint-daemon stop >/dev/null 2>/dev/null || true
  MPTCP_DIRECT_SNAPSHOT_DIR="$DIR/direct" "$DRESTORE" --apply >/dev/null 2>&1 || true
  MPTCP_ROUTING_SNAPSHOT="$SNAP" "$RBACK" --apply >/dev/null 2>&1 || true
  touch "$PAUSED"
@@ -73,8 +74,8 @@ STAGE=diversion_check
 STAGE=diversion_load
 "$NFT" -f "$NFT_FILE" >/dev/null 2>&1 || rollback
 STAGE=diversion_validate
-"$NFT" list table ip bsbf_bonding >/dev/null 2>&1 || rollback
-"$NFT" list set ip bsbf_bonding netcontrol_5m >/dev/null 2>&1 || rollback
+"$NFT" list table ip mptcp_tproxy >/dev/null 2>&1 || rollback
+"$NFT" list set ip mptcp_tproxy limited_clients >/dev/null 2>&1 || rollback
 STAGE=sync
 [ -x "$SYNC" ] && "$SYNC" >/dev/null 2>&1 || true
 STAGE=validate

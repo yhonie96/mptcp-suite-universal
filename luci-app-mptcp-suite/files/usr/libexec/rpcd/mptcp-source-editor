@@ -63,9 +63,9 @@ case "$1" in
      [ -n "$auto" ] || auto=1
 
      state=unknown
-     grep -xqF "$device" /run/bsbf-mptcp-supported \
+     grep -xqF "$device" /run/mptcp-suite/endpoints-supported \
       2>/dev/null && state=supported
-     grep -xqF "$device" /run/bsbf-mptcp-no-connectivity \
+     grep -xqF "$device" /run/mptcp-suite/endpoints-no-connectivity \
       2>/dev/null && state=no-internet
 
      json_add_object ""
@@ -93,7 +93,7 @@ case "$1" in
     }
 
     device="$(uci -q get network.$source.device)"
-    if grep -xqF "$device" /run/bsbf-mptcp-no-connectivity 2>/dev/null; then
+    if grep -xqF "$device" /run/mptcp-suite/endpoints-no-connectivity 2>/dev/null; then
      reply 0 "Sumber tanpa internet dikunci"
      exit 0
     fi
@@ -179,7 +179,7 @@ case "$1" in
      while read -r iface; do
       [ -n "$iface" ] || continue
       [ "$iface" = "$device" ] || healthy=$((healthy + 1))
-     done < /run/bsbf-mptcp-supported
+     done < /run/mptcp-suite/endpoints-supported
 
      [ "$healthy" -gt 0 ] || {
       reply 0 "Ditolak: ini jalur sehat terakhir"
@@ -248,7 +248,7 @@ case "$1" in
      while read -r iface; do
       [ -n "$iface" ] || continue
       [ "$iface" = "$device" ] || healthy=$((healthy + 1))
-     done < /run/bsbf-mptcp-supported
+     done < /run/mptcp-suite/endpoints-supported
 
      [ "$healthy" -gt 0 ] || {
       reply 0 "Ditolak: ini jalur sehat terakhir"

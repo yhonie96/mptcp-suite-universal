@@ -29,7 +29,7 @@ reset; run | grep -Fq DIRECT_RESTORE_OK
 grep -qx DIRECT_MAIN "$D/config/main.json"
 grep -qx DIRECT_LIMIT "$D/config/limit.json"
 [ -e "$D/state/paused" ]
-grep -Fq 'nft delete table ip bsbf_bonding' "$D/actions"
+grep -Fq 'nft delete table ip mptcp_tproxy' "$D/actions"
 grep -Fq 'ip mptcp endpoint flush' "$D/actions"
 grep -Fq 'restart ' "$D/actions"
 [ "$(grep -Fc 'xray run -test -c' "$D/actions")" -eq 2 ]

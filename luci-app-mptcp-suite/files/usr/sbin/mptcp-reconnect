@@ -1,8 +1,4 @@
 #!/bin/sh
-# Jangan pernah membangun ulang tunnel saat pengguna menjeda MPTCP.
-# Pengecualian: resume resmi dari rpcd (MPTCP_RESUME=1) yang memang
-# bertugas mengakhiri jeda; file penanda jeda baru dihapus rpcd
-# setelah tunnel terbukti sehat.
 if [ -e /etc/mptcp-suite/paused ] && [ -z "${MPTCP_RESUME:-}" ]; then
  logger -t mptcp-reconnect "status jeda; reconnect dilewati"
  exit 0
@@ -13,19 +9,22 @@ trap 'rmdir "$LOCK"' EXIT INT TERM
 TAG=mptcp-reconnect
 logger -t "$TAG" "Memulai koneksi ulang aman"
 
-for DEV in $(ip -4 route show default | awk "{print $5}" | sort -u); do
+for DEV in $(ip -4 route show default | awk '{print $5}' | sort -u); do
  IFACE="$(ubus list "network.interface.*" | sed "s/network.interface.//" | while read I; do
   [ "$(ifstatus "$I" 2>/dev/null | jsonfilter -e "@.l3_device")" = "$DEV" ] && { echo "$I"; break; }
  done)"
  [ -n "$IFACE" ] && ubus call "network.interface.$IFACE" up >/dev/null 2>&1
 done
 
-/etc/init.d/bsbf-mptcp stop
-rm -f /run/bsbf-mptcp-supported /run/bsbf-mptcp-not-supported /run/bsbf-mptcp-no-connectivity
-touch /run/bsbf-mptcp-supported /run/bsbf-mptcp-not-supported /run/bsbf-mptcp-no-connectivity
-/etc/init.d/bsbf-mptcp start
+/etc/init.d/mptcp-endpoint-daemon stop >/dev/null 2>&1 || true
+mkdir -p /run/mptcp-suite
+rm -f /run/mptcp-suite/endpoints-supported /run/mptcp-suite/endpoints-not-supported /run/mptcp-suite/endpoints-no-connectivity
+: >/run/mptcp-suite/endpoints-supported
+: >/run/mptcp-suite/endpoints-not-supported
+: >/run/mptcp-suite/endpoints-no-connectivity
+/etc/init.d/mptcp-endpoint-daemon start >/dev/null 2>&1 || true
 
-ip route replace local 0.0.0.0/0 dev lo table 10000
+TT="$(uci -q get mptcp_suite.routing.tproxy_table 2>/dev/null || true)"; [ -n "$TT" ] || TT=10000; ip route replace local 0.0.0.0/0 dev lo table "$TT"
 
 sleep 12
 /usr/sbin/mptcp-profile-restart || exit 1

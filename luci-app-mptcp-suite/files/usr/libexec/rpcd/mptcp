@@ -36,7 +36,7 @@ disable_service() {
 check_http(){
  W=0
  while test $W -lt 6; do
-  C=$(curl -4 -sS --max-time 3 -o /dev/null -w "%{http_code}" "$CHECK_URL" 2>/dev/null || true)
+  C=$("${MPTCP_CURL_BIN:-curl}" -4 -sS --max-time 3 -o /dev/null -w "%{http_code}" "$CHECK_URL" 2>/dev/null || true)
   test "$C" = 204 && return 0
   W=$((W+1))
   sleep 2
@@ -50,7 +50,7 @@ clear_managed_routing() {
 }
 
 disable_diversion() {
- "$INITD/bsbf-bonding-nft" disable >/dev/null 2>&1 || true
+ "$NFT_BIN" delete table ip mptcp_tproxy >/dev/null 2>&1 || true
  "$NFT_BIN" delete table ip bsbf_bonding >/dev/null 2>&1 || true
 }
 
@@ -112,13 +112,12 @@ direct_mode() {
  done <"$MANIFEST"
 
  touch "$PAUSED"
- for svc in bsbf-mptcp bsbf-endpoint-repair mptcp-autoreconnect; do
+ for svc in mptcp-endpoint-daemon mptcp-autoreconnect; do
   disable_service "$svc"
  done
 
  "$INITD/mptcp-autoreconnect" stop >/dev/null 2>&1 || true
- "$INITD/bsbf-endpoint-repair" stop >/dev/null 2>&1 || true
- "$INITD/bsbf-mptcp" stop >/dev/null 2>&1 || true
+ "$INITD/mptcp-endpoint-daemon" stop >/dev/null 2>&1 || true
  "$IP_BIN" mptcp endpoint flush >/dev/null 2>&1 || true
 
  disable_diversion
@@ -220,9 +219,9 @@ call)
   else
    disable_diversion
    touch "$PAUSED"
-   for svc in bsbf-mptcp bsbf-endpoint-repair mptcp-autoreconnect; do
+   for svc in mptcp-endpoint-daemon mptcp-autoreconnect; do
     disable_service "$svc"
-    /etc/init.d/"$svc" stop >/dev/null 2>&1 || true
+    "$INITD/$svc" stop >/dev/null 2>&1 || true
    done
    "$IP_BIN" mptcp endpoint flush >/dev/null 2>&1 || true
    reply 0 "Direct gagal disiapkan; mode Direct darurat dipertahankan"

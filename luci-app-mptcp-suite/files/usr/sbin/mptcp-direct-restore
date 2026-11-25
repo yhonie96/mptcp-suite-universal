@@ -20,6 +20,7 @@ while IFS="$(printf '\t')" read -r id cfg svc vt ft snap; do
  "$XRAY" run -test -c "$src" >/dev/null 2>&1 || { echo "ERROR=invalid_direct:$id"; exit 5; }
  cp -p "$src" "$TMP/$id.json"
 done <"$MANIFEST"
+"$NFT" delete table ip mptcp_tproxy >/dev/null 2>&1 || true
 "$NFT" delete table ip bsbf_bonding >/dev/null 2>&1 || true
 "$IP" mptcp endpoint flush >/dev/null 2>&1 || true
 while IFS="$(printf '\t')" read -r id cfg svc vt ft snap; do

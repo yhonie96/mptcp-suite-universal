@@ -104,7 +104,7 @@ usr/share/rpcd/acl.d/luci-app-netcontrol-profiles.json
 usr/share/rpcd/acl.d/luci-app-netcontrol.json
 usr/share/rpcd/ucode/netcontrol.uc
 usr/bin/netcontrolctl
-usr/lib/netcontrol/bsbf-5mbps-sync.sh
+usr/sbin/mptcp-client-limit-sync
 "
 
     mkdir -p "$tmp/root"

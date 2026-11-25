@@ -1,0 +1,76 @@
+#!/bin/sh
+set -eu
+NFT="${MPTCP_NFT_BIN:-nft}"
+UCI="${MPTCP_UCI_BIN:-uci}"
+IP="${MPTCP_IP_BIN:-ip}"
+LEASES="${MPTCP_LEASES_FILE:-/tmp/dhcp.leases}"
+TABLE="${MPTCP_NFT_TABLE:-mptcp_tproxy}"
+SET="${MPTCP_NFT_SET:-limited_clients}"
+PAUSED="${MPTCP_PAUSED_FILE:-/etc/mptcp-suite/paused}"
+[ -e "$PAUSED" ] && exit 0
+"$NFT" list table ip "$TABLE" >/dev/null 2>&1 || exit 0
+"$NFT" list set ip "$TABLE" "$SET" >/dev/null 2>&1 || exit 0
+"$UCI" -q show netcontrol >/dev/null 2>&1 || exit 0
+NOW="${MPTCP_NOW_EPOCH:-$(date +%s)}"
+DOW="${MPTCP_NOW_DOW:-$(date +%u)}"
+HM="${MPTCP_NOW_HM:-$(date +%H%M)}"
+is_ipv4() { printf '%s\n' "$1" | awk -F. 'NF==4{for(i=1;i<=4;i++)if($i!~/^[0-9]+$/||$i<0||$i>255)exit 1;exit 0}{exit 1}'; }
+find_ip() {
+ mac="$1"; [ -n "$mac" ] || return 0; ip_found=""
+ [ -r "$LEASES" ] && ip_found="$(awk -v m="$mac" 'tolower($2)==tolower(m){print $3;exit}' "$LEASES" 2>/dev/null || true)"
+ [ -n "$ip_found" ] || ip_found="$("$IP" neigh show 2>/dev/null | awk -v m="$mac" '/lladdr/ && !/FAILED|INCOMPLETE/{for(i=1;i<=NF;i++) if($i=="lladdr" && tolower($(i+1))==tolower(m)){print $1;exit}}' || true)"
+ printf '%s\n' "$ip_found"
+}
+schedule_active() {
+ sec="$1"
+ [ "$("$UCI" -q get "netcontrol.$sec.schedule_enabled" || echo 0)" = 1 ] || return 0
+ days="$("$UCI" -q get "netcontrol.$sec.schedule_days" || echo 1234567)"
+ start="$("$UCI" -q get "netcontrol.$sec.schedule_start" || echo 0000)"
+ end="$("$UCI" -q get "netcontrol.$sec.schedule_end" || echo 2359)"
+ printf '%s\n' "$days" | grep -q "$DOW" || return 1
+ if [ "$start" -le "$end" ]; then
+  [ "$HM" -ge "$start" ] && [ "$HM" -le "$end" ]
+ else
+  [ "$HM" -ge "$start" ] || [ "$HM" -le "$end" ]
+ fi
+}
+profile_ceiling() {
+ label="$("$UCI" -q get "mptcp_profiles.$1.limit_label" 2>/dev/null || true)"
+ printf '%s\n' "$label" | awk '{for(i=1;i<=NF;i++) if($i ~ /^[0-9]+$/){print $i*1000;exit}}'
+}
+auto_profile() {
+ speed="$1"; [ "$speed" -gt 0 ] 2>/dev/null || { echo main; return 0; }
+ best=""; best_limit=0
+ for p in $("$UCI" -q show mptcp_profiles | awk -F'[.=]' '$3=="profile"{print $2}'); do
+  [ "$p" != main ] || continue
+  [ "$("$UCI" -q get "mptcp_profiles.$p.enabled" 2>/dev/null || echo 0)" = 1 ] || continue
+  limit="$(profile_ceiling "$p")"; [ -n "$limit" ] || continue
+  if [ "$speed" -le "$limit" ] && { [ "$best_limit" -eq 0 ] || [ "$limit" -lt "$best_limit" ]; }; then
+   best="$p"; best_limit="$limit"
+  fi
+ done
+ echo "${best:-main}"
+}
+"$NFT" flush set ip "$TABLE" "$SET" >/dev/null 2>&1 || true
+for sec in $("$UCI" -q show netcontrol | grep '=device$' | cut -d. -f2 | cut -d= -f1); do
+ [ "$("$UCI" -q get "netcontrol.$sec.enabled" || echo 0)" = 1 ] || continue
+ [ "$("$UCI" -q get "netcontrol.$sec.ignored" || echo 0)" != 1 ] || continue
+ [ "$("$UCI" -q get "netcontrol.$sec.protected" || echo 0)" != 1 ] || continue
+ override="$("$UCI" -q get "netcontrol.$sec.override_until" || echo 0)"
+ [ "$override" -le "$NOW" ] 2>/dev/null || continue
+ schedule_active "$sec" || continue
+ mac="$("$UCI" -q get "netcontrol.$sec.mac" 2>/dev/null || true)"
+ client_ip="$(find_ip "$mac")"; is_ipv4 "$client_ip" || continue
+ profile="$("$UCI" -q get "netcontrol.$sec.xray_profile" 2>/dev/null || echo auto)"
+ if [ "$profile" = auto ]; then
+  down="$("$UCI" -q get "netcontrol.$sec.download_kbps" 2>/dev/null || echo 0)"
+  up="$("$UCI" -q get "netcontrol.$sec.upload_kbps" 2>/dev/null || echo 0)"
+  speed="$down"; [ "$up" -le "$speed" ] 2>/dev/null || speed="$up"
+  profile="$(auto_profile "$speed")"
+ fi
+ role="$("$UCI" -q get "mptcp_profiles.$profile.diversion_role" 2>/dev/null || true)"
+ if [ "$profile" = "limit5" ] || [ "$role" = "limited" ]; then
+  "$NFT" add element ip "$TABLE" "$SET" "{ $client_ip }" >/dev/null 2>&1 || true
+  logger -t mptcp-client-limit-sync "diversion=limited profile=$profile section=$sec ip=$client_ip"
+ fi
+done

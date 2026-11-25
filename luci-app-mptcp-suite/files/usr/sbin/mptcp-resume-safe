@@ -3,9 +3,9 @@ set -eu
 
 DIR=/etc/mptcp-suite
 MANIFEST="$DIR/tunnel-profiles.tsv"
-MODE="$(cat /etc/bsbf/bsbf-mptcp-mode 2>/dev/null || echo combine)"
-PRIMARY="$(cat /etc/bsbf/bsbf-mptcp-primary 2>/dev/null || true)"
-BACKUPS="$(cat /etc/bsbf/bsbf-mptcp-subflow-backup 2>/dev/null || true)"
+MODE="$(cat /etc/mptcp-suite/mptcp-mode 2>/dev/null || echo combine)"
+PRIMARY="$(cat /etc/mptcp-suite/mptcp-primary 2>/dev/null || true)"
+BACKUPS="$(cat /etc/mptcp-suite/mptcp-subflow-backup 2>/dev/null || true)"
 
 [ -s "$MANIFEST" ] || {
  echo ERROR=missing_profile_manifest

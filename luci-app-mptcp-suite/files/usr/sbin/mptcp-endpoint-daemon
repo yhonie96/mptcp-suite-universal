@@ -1,0 +1,110 @@
+#!/bin/sh
+set -eu
+CONF_DIR="${MPTCP_SUITE_DIR:-/etc/mptcp-suite}"
+RUN_DIR="${MPTCP_RUN_DIR:-/run/mptcp-suite}"
+PAUSED="${MPTCP_PAUSED_FILE:-$CONF_DIR/paused}"
+SUPPORTED="$RUN_DIR/endpoints-supported"
+NO_CONN="$RUN_DIR/endpoints-no-connectivity"
+NOT_SUPP="$RUN_DIR/endpoints-not-supported"
+BACKUP_FILE="$CONF_DIR/mptcp-subflow-backup"
+IP="${MPTCP_IP_BIN:-ip}"
+PING="${MPTCP_PING_BIN:-ping}"
+SYSCTL="${MPTCP_SYSCTL_BIN:-sysctl}"
+UCI="${MPTCP_UCI_BIN:-uci}"
+INTERVAL="${MPTCP_ENDPOINT_INTERVAL:-2}"
+ONCE=0; [ "${1:-}" = "--once" ] && ONCE=1
+[ -e "$PAUSED" ] && exit 0
+mkdir -p "$CONF_DIR" "$RUN_DIR"
+for p in "bsbf-mptcp-mode:mptcp-mode" "bsbf-mptcp-primary:mptcp-primary" "bsbf-mptcp-subflow-backup:mptcp-subflow-backup"; do
+ [ ! -e "$CONF_DIR/${p#*:}" ] && [ -e "/etc/bsbf/${p%%:*}" ] && cp -p "/etc/bsbf/${p%%:*}" "$CONF_DIR/${p#*:}" 2>/dev/null || true
+done
+touch "$SUPPORTED" "$NO_CONN" "$NOT_SUPP"
+PROBE_IP="${MPTCP_PROBE_IP:-$($UCI -q get mptcp_suite.failover.probe_ip 2>/dev/null || true)}"
+[ -n "$PROBE_IP" ] || PROBE_IP="1.1.1.1"
+remove_endpoint() {
+ ids=$("$IP" mptcp endpoint show 2>/dev/null | awk -v d="$1" '$NF==d {for(i=1;i<=NF;i++) if($i=="id") print $(i+1)}')
+ for id in $ids; do "$IP" mptcp endpoint delete id "$id" >/dev/null 2>&1 || true; done
+}
+add_endpoint() { "$IP" mptcp endpoint add "$2" subflow dev "$1" >/dev/null 2>&1 || true; }
+set_endpoint_flag() {
+ ids=$("$IP" mptcp endpoint show 2>/dev/null | awk -v d="$1" '$NF==d {for(i=1;i<=NF;i++) if($i=="id") print $(i+1)}')
+ for id in $ids; do "$IP" mptcp endpoint change id "$id" "$2" >/dev/null 2>&1 || true; done
+}
+mptcp_kernel_ok() {
+ [ -n "${MPTCP_KERNEL_ENABLED:-}" ] && { [ "$MPTCP_KERNEL_ENABLED" = "1" ]; return $?; }
+ [ "$(cat /proc/sys/net/mptcp/enabled 2>/dev/null || echo 1)" != "0" ]
+}
+[ -e "$PAUSED" ] && exit 0
+"$IP" mptcp limits set subflows 8 >/dev/null 2>&1 || true
+"$SYSCTL" -w net.mptcp.blackhole_timeout=0 >/dev/null 2>&1 || true
+# Jangan jalankan siklus perbaikan jika status paused aktif
+run_cycle() {
+ [ -e "$PAUSED" ] && exit 0
+ routes=$("$IP" -4 route show default 2>/dev/null | grep "metric" || true)
+ [ -n "$routes" ] || { "$IP" mptcp endpoint flush >/dev/null 2>&1 || true; : >"$SUPPORTED"; : >"$NO_CONN"; : >"$NOT_SUPP"; return 0; }
+ dups=$(printf '%s\n' "$routes" | awk '{d=""; for(i=1;i<=NF;i++) if($i=="dev") d=$(i+1); if(d!="" && seen[d]++) print}')
+ [ -z "$dups" ] || { printf '%s\n' "$dups" | while IFS= read -r r; do [ -n "$r" ] && "$IP" route delete $r >/dev/null 2>&1 || true; done; routes=$("$IP" -4 route show default 2>/dev/null | grep "metric" || true); }
+ route_count=$(printf '%s\n' "$routes" | grep -c "metric" || true)
+ interfaces=$(printf '%s\n' "$routes" | awk '{for(i=1;i<=NF;i++) if($i=="dev") print $(i+1)}')
+ for f in "$NO_CONN" "$NOT_SUPP" "$SUPPORTED"; do printf '%s\n' "$interfaces" | grep -xf - "$f" >"$f.tmp" 2>/dev/null || true; mv "$f.tmp" "$f"; done
+ for IFACE in $("$IP" mptcp endpoint show 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="dev") print $(i+1)}' | sort -u); do
+  [ "$IFACE" = "warp" ] && continue
+  grep -xqF "$IFACE" "$SUPPORTED" || remove_endpoint "$IFACE"
+ done
+ for IFACE in $interfaces; do
+  [ -e "$PAUSED" ] && exit 0
+  cur_ip=$("$IP" -4 -o addr show dev "$IFACE" scope global 2>/dev/null | awk 'NR==1 {split($4,a,"/"); print a[1]}')
+  if [ -n "$cur_ip" ] && "$PING" -I "$IFACE" -c 1 -W 2 "$PROBE_IP" >/dev/null 2>&1; then
+   grep -vxF "$IFACE" "$NO_CONN" >"$NO_CONN.tmp" 2>/dev/null || true; mv "$NO_CONN.tmp" "$NO_CONN"
+  else
+   grep -xqF "$IFACE" "$NO_CONN" || echo "$IFACE" >>"$NO_CONN"
+   grep -xqF "$IFACE" "$SUPPORTED" && { grep -vxF "$IFACE" "$SUPPORTED" >"$SUPPORTED.tmp" 2>/dev/null || true; mv "$SUPPORTED.tmp" "$SUPPORTED"; remove_endpoint "$IFACE"; }
+   continue
+  fi
+  grep -xqF "$IFACE" "$NOT_SUPP" && continue
+  if grep -xqF "$IFACE" "$SUPPORTED"; then
+   if ! "$IP" mptcp endpoint show 2>/dev/null | grep -F "$cur_ip " | grep -Fq "dev $IFACE"; then
+    logger -t mptcp-endpoint-daemon "memperbarui endpoint iface=$IFACE ip=$cur_ip"
+    remove_endpoint "$IFACE"; add_endpoint "$IFACE" "$cur_ip"
+   fi
+  else
+   if mptcp_kernel_ok; then echo "$IFACE" >>"$SUPPORTED"; add_endpoint "$IFACE" "$cur_ip"
+   else echo "$IFACE" >>"$NOT_SUPP"; fi
+  fi
+ done
+ while IFS= read -r IFACE; do
+  [ -n "$IFACE" ] || continue
+  if [ -f "$BACKUP_FILE" ] && grep -xqF "$IFACE" "$BACKUP_FILE"; then set_endpoint_flag "$IFACE" backup
+  else set_endpoint_flag "$IFACE" nobackup; fi
+ done <"$SUPPORTED"
+ i_first=$(printf '%s\n' "$interfaces" | sed -n '1p')
+ [ -n "$i_first" ] || return 0
+ if ! grep -xqF "$i_first" "$NO_CONN" && grep -xqF "$i_first" "$SUPPORTED"; then return 0
+ elif ! grep -xqF "$i_first" "$NO_CONN" && grep -xqF "$i_first" "$NOT_SUPP"; then
+  usable=0; grep -vxf "$NO_CONN" "$SUPPORTED" 2>/dev/null | grep -q . && usable=1
+  [ "$usable" -eq 0 ] && [ ! -s "$NO_CONN" ] && return 0
+ elif grep -xqF "$i_first" "$NO_CONN"; then
+  usable=0; grep -vxf "$NO_CONN" "$SUPPORTED" 2>/dev/null | grep -q . && usable=1
+  [ "$usable" -eq 0 ] && return 0
+ fi
+ r_first=$(printf '%s\n' "$routes" | sed -n '1p')
+ r_last=$(printf '%s\n' "$routes" | tail -n 1)
+ m_first=$(printf '%s\n' "$r_first" | grep -o "metric [0-9]*" | awk '{print $2}')
+ m_last=$(printf '%s\n' "$r_last" | grep -o "metric [0-9]*" | awk '{print $2}')
+ [ -n "$m_first" ] && [ -n "$m_last" ] || return 0
+ new_m=$((m_last + 1)); [ "$new_m" -lt 9 ] && new_m=9
+ "$IP" route delete $r_first >/dev/null 2>&1 || true
+ if [ "$new_m" -gt 16 ]; then
+  metric=9; new_m=$((metric + route_count - 1))
+  printf '%s\n' "$routes" | sed '1d' | while IFS= read -r r; do
+   [ -n "$r" ] || continue
+   "$IP" route add ${r%metric*}metric "$metric" >/dev/null 2>&1 || true
+   "$IP" route delete $r >/dev/null 2>&1 || true
+   metric=$((metric + 1))
+  done
+ fi
+ "$IP" route add ${r_first%metric*}metric "$new_m" >/dev/null 2>&1 || true
+ logger -t mptcp-endpoint-daemon "Mengubah metric $i_first dari $m_first menjadi $new_m."
+}
+[ "$ONCE" -eq 1 ] && { run_cycle; exit 0; }
+while true; do run_cycle; sleep "$INTERVAL"; done

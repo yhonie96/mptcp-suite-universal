@@ -32,7 +32,7 @@ cat >"$D/bin/generator" <<'EOF'
 #!/bin/sh
 echo "generator $*" >>"$MOCK_LOG"
 [ "${GEN_FAIL:-0}" = 1 ] && exit 1
-printf 'table ip bsbf_bonding {}\n' >"$1"
+printf 'table ip mptcp_tproxy {}\n' >"$1"
 EOF
 chmod 755 "$D/bin/generator"
 for n in precheck routing rollback direct-restore restart reconnect sync curl ip ss xray nft uci paused-service traffic-service; do cp "$D/bin/step" "$D/bin/$n"; chmod 755 "$D/bin/$n"; done
@@ -94,5 +94,5 @@ reset; set +e; out="$(MOCK_SF=1 run 2>&1)"; rc=$?; set -e
 [ "$rc" -ne 0 ]; [ -e "$D/paused" ]
 echo "$out" | grep -Fq "subflow=1"
 echo MPTCP_ACTIVATE_SUBFLOW_ROLLBACK_OK
-grep -Fq 'bsbf-mptcp stop' "$A"
+grep -Fq 'mptcp-endpoint-daemon' "$A"
 echo MPTCP_ACTIVATE_ROLLBACK_SERVICE_OK

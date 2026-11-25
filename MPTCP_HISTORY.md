@@ -196,3 +196,6 @@ Root cause confirmed: eth1 HTTPS=204 while both ICMP probes failed, blocking rec
 
 ### Conditional isolation rollback passed Mon Nov 23 22:58 WIB 2026
 Activation rollback now restores paused-failover and traffic-policy only after their isolation begins. Precheck failure changes neither service. Partial stop failures restore only affected components. Transaction tests and full suite 75/75 passed; diff check clean. Runtime unchanged; still paused; do not Resume.
+
+### Native endpoint daemon and client limit sync Wed Nov 25 21:14:26 WIB 2026
+Replaced bsbf-endpoint-repair with native mptcp-endpoint-daemon and mptcp-client-limit-sync; removed +bsbf-bonding dependency from luci-app-mptcp-suite; 77/77 tests passed. Installed on router with backup; bsbf-endpoint-repair removed; runtime remains paused/Direct with defaults 7/9, table101 on phy0-sta0, and HTTP=204. Do not Resume until new VLESS Reality profiles are configured.

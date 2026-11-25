@@ -44,16 +44,16 @@ add_sources() {
    2>/dev/null | awk 'NR==1{print $4}')"
 
   state=unknown
-  grep -xqF "$device" /run/bsbf-mptcp-supported \
+  grep -xqF "$device" /run/mptcp-suite/endpoints-supported \
    2>/dev/null && state=supported
-  grep -xqF "$device" /run/bsbf-mptcp-no-connectivity \
+  grep -xqF "$device" /run/mptcp-suite/endpoints-no-connectivity \
    2>/dev/null && state=no-internet
-  grep -xqF "$device" /run/bsbf-mptcp-not-supported \
+  grep -xqF "$device" /run/mptcp-suite/endpoints-not-supported \
    2>/dev/null && state=not-supported
 
   backup=0
   grep -xqF "$device" \
-   /etc/bsbf/bsbf-mptcp-subflow-backup \
+   /etc/mptcp-suite/mptcp-subflow-backup \
    2>/dev/null && backup=1
 
   json_add_object ""
@@ -132,8 +132,8 @@ case "$1" in
      awk '{for(i=1;i<=NF;i++) if($i=="subflows") print $(i+1)}')"
     json_add_int endpoints "${endpoints:-0}"
     json_add_int subflows "${subflows:-0}"
-    mode="$(cat /etc/bsbf/bsbf-mptcp-mode 2>/dev/null)"
-    primary="$(cat /etc/bsbf/bsbf-mptcp-primary 2>/dev/null)"
+    mode="$(cat /etc/mptcp-suite/mptcp-mode 2>/dev/null)"
+    primary="$(cat /etc/mptcp-suite/mptcp-primary 2>/dev/null)"
     [ -n "$mode" ] || mode=combine
     json_add_string mode "$mode"
     json_add_string primary "$primary"
@@ -174,8 +174,8 @@ case "$1" in
      exit 0
     }
 
-    mkdir -p /etc/bsbf
-    file=/etc/bsbf/bsbf-mptcp-subflow-backup
+    mkdir -p /etc/mptcp-suite
+    file=/etc/mptcp-suite/mptcp-subflow-backup
     touch "$file"
 
     grep -vxF "$iface" "$file" >"$file.tmp" || true
@@ -193,8 +193,8 @@ case "$1" in
     json_get_var mode mode
     json_get_var primary primary
 
-    mkdir -p /etc/bsbf
-    file=/etc/bsbf/bsbf-mptcp-subflow-backup
+    mkdir -p /etc/mptcp-suite
+    file=/etc/mptcp-suite/mptcp-subflow-backup
     tmp="$file.tmp"
     : >"$tmp"
 
@@ -233,20 +233,20 @@ case "$1" in
 
     sort -u "$tmp" >"$file"
     rm -f "$tmp"
-    echo "$mode" >/etc/bsbf/bsbf-mptcp-mode
+    echo "$mode" >/etc/mptcp-suite/mptcp-mode
     if [ "$mode" = primary ]; then
-     echo "$primary" >/etc/bsbf/bsbf-mptcp-primary
+     echo "$primary" >/etc/mptcp-suite/mptcp-primary
     else
-     rm -f /etc/bsbf/bsbf-mptcp-primary
+     rm -f /etc/mptcp-suite/mptcp-primary
     fi
     reply 1 "Mode MPTCP berhasil diterapkan"
    ;;
 
    clean_runtime)
     for file in \
-     /run/bsbf-mptcp-supported \
-     /run/bsbf-mptcp-no-connectivity \
-     /run/bsbf-mptcp-not-supported
+     /run/mptcp-suite/endpoints-supported \
+     /run/mptcp-suite/endpoints-no-connectivity \
+     /run/mptcp-suite/endpoints-not-supported
     do
      [ -f "$file" ] || continue
      sort -u "$file" >"$file.tmp"

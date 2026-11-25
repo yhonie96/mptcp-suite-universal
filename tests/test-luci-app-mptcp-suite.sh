@@ -89,9 +89,9 @@ grep -Fq 'Restore Aman' "$BACKUP_UI"
 grep -Fq 'Restore UI/BSBF' "$BACKUP_UI"
 grep -Fq 'izin file 600' "$BACKUP_UI"
 echo MODERN_BACKUP_UI_TEST_OK
-R="$P/files/usr/sbin/bsbf-endpoint-repair"
+R="$P/files/usr/sbin/mptcp-endpoint-daemon"
 test "$(grep -c paused "$R")" -ge 2
-S="$P/files/etc/init.d/bsbf-endpoint-repair"
+S="$P/files/etc/init.d/mptcp-endpoint-daemon"
 test "$(grep -c paused "$S")" -ge 1
 echo ENDPOINT_PAUSED_GUARD_OK
 grep -Fq "mptcp-reconnect || exit 1" "$AUTO"

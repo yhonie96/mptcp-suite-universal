@@ -35,8 +35,8 @@ echo "nft $*" >>"$MOCK_LOG"
 case "$*" in
  "-c -f "*) [ "${NFT_FAIL:-}" = check ] && exit 1 ;;
  "-f "*) [ "${NFT_FAIL:-}" = load ] && exit 1 ;;
- "list table ip bsbf_bonding") [ "${NFT_FAIL:-}" = table ] && exit 1 ;;
- "list set ip bsbf_bonding netcontrol_5m") [ "${NFT_FAIL:-}" = set ] && exit 1 ;;
+ "list table ip mptcp_tproxy") [ "${NFT_FAIL:-}" = table ] && exit 1 ;;
+ "list set ip mptcp_tproxy limited_clients") [ "${NFT_FAIL:-}" = set ] && exit 1 ;;
 esac
 exit 0
 EOF
@@ -44,7 +44,7 @@ cat >"$D/bin/generator" <<'EOF'
 #!/bin/sh
 echo "generator $*" >>"$MOCK_LOG"
 [ "${GEN_FAIL:-0}" = 1 ] && exit 1
-printf 'table ip bsbf_bonding {}\n' >"$1"
+printf 'table ip mptcp_tproxy {}\n' >"$1"
 EOF
 chmod 755 "$D/bin/generator"
 for n in precheck routing rollback direct-restore restart reconnect sync curl ip ss xray uci; do cp "$D/bin/step" "$D/bin/$n"; chmod 755 "$D/bin/$n"; done
@@ -64,13 +64,13 @@ out="$(run)"; echo "$out" | grep -Fq MPTCP_ACTIVATE_OK
 grep -Fq "generator $D/bonding.nft" "$D/actions"
 grep -Fq "nft -c -f $D/bonding.nft" "$D/actions"
 grep -Fq "nft -f $D/bonding.nft" "$D/actions"
-grep -Fq 'nft list table ip bsbf_bonding' "$D/actions"
-grep -Fq 'nft list set ip bsbf_bonding netcontrol_5m' "$D/actions"
+grep -Fq 'nft list table ip mptcp_tproxy' "$D/actions"
+grep -Fq 'nft list set ip mptcp_tproxy limited_clients' "$D/actions"
 echo MPTCP_DIVERSION_SUCCESS_OK
 for fail in check load table set; do
  reset; set +e; out="$(NFT_FAIL="$fail" run 2>&1)"; rc=$?; set -e
  [ "$rc" -ne 0 ]; [ -e "$D/paused" ]; echo "$out" | grep -Fq MPTCP_ACTIVATE_ROLLBACK
- grep -Fq 'nft delete table ip bsbf_bonding' "$D/actions"
+ grep -Fq 'nft delete table ip mptcp_tproxy' "$D/actions"
  case "$fail" in check) stage=diversion_check;; load) stage=diversion_load;; *) stage=diversion_validate;; esac
  echo "$out" | grep -Fq "stage=$stage"
  echo "MPTCP_DIVERSION_${fail}_ROLLBACK_OK"

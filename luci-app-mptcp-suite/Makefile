@@ -12,7 +12,7 @@ define Package/luci-app-mptcp-suite
   CATEGORY:=LuCI
   SUBMENU:=3. Applications
   TITLE:=MPTCP Suite
-  DEPENDS:=+mptcp-suite-core +mptcp-suite-routing +mptcp-suite-traffic +bsbf-bonding +xray-core +jq +curl +rpcd +luci-base +ucode +uci +ip-full +nftables-json +jsonfilter
+  DEPENDS:=+mptcp-suite-core +mptcp-suite-routing +mptcp-suite-traffic +xray-core +jq +curl +rpcd +luci-base +ucode +uci +ip-full +nftables-json +jsonfilter
 endef
 
 define Package/luci-app-mptcp-suite/conffiles
