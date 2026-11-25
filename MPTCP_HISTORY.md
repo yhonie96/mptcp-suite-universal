@@ -202,3 +202,6 @@ Replaced bsbf-endpoint-repair with native mptcp-endpoint-daemon and mptcp-client
 
 ### Hardened paused direct mode and reboot verified Wed Nov 25 22:04 WIB 2026
 Committed 7d1813d on fix/pause-managed-clear replacing directory lock with fd flock in traffic-policy-apply, making post-restart DNS wait offline-safe, aligning /etc/init.d/traffic-policy rule 99 setup, and restoring empty/unknown policy table 101 immediately in paused-failover-monitor; 78/78 unit tests passed and files matched live router via sha256sum. Post-reboot runtime verified with paused=1, S99traffic-policy APPLY_OK rules=4, defaults eth1-7/phy0-sta0-9, table 101 on phy0-sta0, active manual_1-manu
+
+### Universal LuCI UI labels committed and synced Wed Nov 25 22:18 WIB 2026
+Committed 3769e2c on fix/pause-managed-clear updating status description in mptcp.js to generic application traffic wording and clarifying the BSBF preview label in mptcp-backup.js, pushed to origin/fix/pause-managed-clear, and synced both files to /www/luci-static/resources/view/status/ with matching sha256sum hashes while keeping paused Direct mode running undisturbed.
