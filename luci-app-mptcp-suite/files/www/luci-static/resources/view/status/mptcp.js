@@ -106,7 +106,7 @@ return view.extend({
        b.disabled=true;
        var action=h.paused
         ? resumeCheck().then(function(c){
-           if(!c.ok)throw new Error(c.message||'Precheck aktivasi gagal');
+           if(!c.ok)throw new Error(c.message||'Pemeriksaan awal aktivasi gagal');
            return resumeMptcp();
           })
         : pauseMptcp();

@@ -205,3 +205,6 @@ Committed 7d1813d on fix/pause-managed-clear replacing directory lock with fd fl
 
 ### Universal LuCI UI labels committed and synced Wed Nov 25 22:18 WIB 2026
 Committed 3769e2c on fix/pause-managed-clear updating status description in mptcp.js to generic application traffic wording and clarifying the BSBF preview label in mptcp-backup.js, pushed to origin/fix/pause-managed-clear, and synced both files to /www/luci-static/resources/view/status/ with matching sha256sum hashes while keeping paused Direct mode running undisturbed.
+
+### Universal LuCI views and language standard recorded Wed Nov 25 22:45 WIB 2026
+Standardized UI copy to neutral Indonesian (reserving US English spelling for code identifiers and English technical docs), generalized xray-profiles.js examples and traffic role labels, removed remaining BSBF jargon in mptcp-backup.js, refined diagnostics/draft wording in mptcp.js and mptcp-source-editor.js, synced all four view files to /www/luci-static/resources/view/status/ with verified sha256sum hashes, and kept paused Direct mode running undisturbed.

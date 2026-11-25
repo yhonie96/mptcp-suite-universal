@@ -68,7 +68,7 @@ return view.extend({
 
    E('div',{class:'se-hero'},[
     E('strong',{},'Atur sumber koneksi dengan aman'),
-    E('span',{},'Perubahan disimpan sebagai draft, divalidasi, lalu diterapkan dengan rollback otomatis jika internet gagal.')
+    E('span',{},'Perubahan disimpan sebagai draf, divalidasi, lalu diterapkan dengan rollback otomatis jika koneksi internet terputus.')
    ]),
 
    E('div',{class:'se-box'},[
@@ -98,7 +98,7 @@ return view.extend({
      }},'Validasi'),
 
      E('button',{class:'btn cbi-button cbi-button-apply',click:function(){
-      if(confirm('Terapkan perubahan? Rollback otomatis dijalankan jika internet gagal.'))
+      if(confirm('Terapkan perubahan? Rollback otomatis dijalankan jika koneksi internet terputus.'))
        return apply().then(note);
      }},'Terapkan'),
 
@@ -109,8 +109,8 @@ return view.extend({
 
     E('div',{class:'se-draft'},
      data.draft
-      ?'Draft tersedia dan belum diterapkan.'
-      :'Tidak ada draft perubahan.')
+      ?'Draf tersedia dan belum diterapkan.'
+      :'Tidak ada draf perubahan.')
    ])
   ]);
 

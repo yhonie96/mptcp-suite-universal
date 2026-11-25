@@ -68,7 +68,7 @@ function runPreview(name) {
     E('li', {}, 'File UI: ' + result.ui),
     E('li', {}, 'Backend RPC: ' + result.rpc),
     E('li', {}, 'ACL: ' + result.acl),
-    E('li', {}, 'Pengaturan bonding/cadangan (BSBF): ' +
+    E('li', {}, 'Pengaturan bonding/cadangan: ' +
      (result.bsbf ? 'tersedia' : 'tidak tersedia')),
     E('li', {}, 'Jaringan: DIKUNCI'),
     E('li', {}, 'Xray aktif: DIKUNCI')
@@ -85,7 +85,7 @@ function runPreview(name) {
 
 function runRestore(name) {
  if (!confirm(
-  'Restore UI dan pengaturan BSBF dari backup ini?\n\n' +
+  'Pulihkan UI dan pengaturan bonding/cadangan dari backup ini?\n\n' +
   'Jaringan dan Xray tidak akan diubah.'
  ))
   return;
@@ -144,7 +144,7 @@ return view.extend({
       click: function() {
        return runRestore(backup.name);
       }
-     }, 'Restore UI/BSBF'),
+     }, 'Pulihkan UI & Pengaturan'),
 
      E('button', {
       class: 'btn cbi-button cbi-button-negative',
@@ -214,7 +214,7 @@ return view.extend({
    E('div', { class: 'backup-lock' }, [
     E('strong', {}, 'Restore Aman'),
     E('div', {},
-     'Hanya UI MPTCP dan pengaturan BSBF yang dipulihkan.'),
+     'Hanya UI MPTCP dan pengaturan bonding/cadangan yang dipulihkan.'),
     E('div', {}, 'Konfigurasi jaringan dan Xray tetap dikunci.')
    ]),
 

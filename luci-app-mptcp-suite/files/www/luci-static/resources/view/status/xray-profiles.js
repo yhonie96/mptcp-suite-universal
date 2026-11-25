@@ -217,9 +217,9 @@ return view.extend({
     ]),
 
     E('div',{class:'xp-grid'},[
-     E('div',{},['Limit: ',E('strong',{},p.limit)]),
+     E('div',{},['Keterangan: ',E('strong',{},p.limit||'-')]),
      E('div',{},['Port VPS: ',E('strong',{},p.vps_port)]),
-     E('div',{},['Peran diversion: ',E('strong',{},p.diversion_role||'none')]),
+     E('div',{},['Peran trafik: ',E('strong',{},({none:'Tidak dialihkan',main:'Utama',limited:'Terbatas'})[p.diversion_role]||p.diversion_role||'Tidak dialihkan')]),
      E('div',{},['Service: ',E('strong',{},p.service)]),
      E('div',{},['ID: ',E('strong',{},p.id)])
     ]),
@@ -264,17 +264,17 @@ return view.extend({
     E('h3',{},'Tambah Profil Xray'),
 
     E('div',{class:'xp-note'},
-     'Pastikan akun dan port sudah tersedia di VPS. Label kecepatan hanya informasi; limit sebenarnya diatur pada VPS.'),
+     'Pastikan akun dan port sudah tersedia di VPS. Keterangan profil hanya sebagai label informasi; pembatasan kecepatan diatur di sisi VPS.'),
 
     E('div',{class:'xp-form-grid'},[
-     field('ID profil','xp-id','text','','contoh: limit10'),
-     field('Nama profil','xp-name','text','','contoh: 10 Mbps'),
+     field('ID profil','xp-id','text','','contoh: vps-utama'),
+     field('Nama profil','xp-name','text','','contoh: VPS Utama'),
      field('IP / domain VPS','xp-server','text',
       profiles[0] ? profiles[0].server : ''),
-     field('Port VPS','xp-vps','number','','contoh: 16445'),
-     field('Port lokal','xp-local','number','','contoh: 12347'),
-     field('Label limit','xp-limit','text','','contoh: 10 Mbps'),
-     selectField('Peran diversion','xp-role',[
+     field('Port VPS','xp-vps','number','','contoh: 443'),
+     field('Port lokal','xp-local','number','','contoh: 12345'),
+     field('Keterangan profil','xp-limit','text','','contoh: Jalur utama / cadangan'),
+     selectField('Peran trafik','xp-role',[
       ['none','Tidak dialihkan'],
       ['main','Utama'],
       ['limited','Terbatas']
