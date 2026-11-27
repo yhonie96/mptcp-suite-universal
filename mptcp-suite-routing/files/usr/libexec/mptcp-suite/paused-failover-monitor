@@ -5,11 +5,18 @@ ROUTE="${MPTCP_PAUSED_FAILOVER_ROUTE_BIN:-/usr/libexec/mptcp-suite/paused-failov
 POLICY="${MPTCP_PAUSED_POLICY_FAILOVER_BIN:-/usr/libexec/mptcp-suite/paused-policy-failover}"
 POLICY_STATE="${MPTCP_PAUSED_POLICY_STATE:-/tmp/mptcp-paused-policy.state}"
 POLICY_TABLE="${MPTCP_POLICY_TABLE:-101}"
+XRAY_DNS_SVC="${MPTCP_XRAY_DNS_SERVICE:-/etc/init.d/xray-dns}"
+DNSMASQ_SVC="${MPTCP_DNSMASQ_SERVICE:-/etc/init.d/dnsmasq}"
 PAUSED="${MPTCP_PAUSED_FILE:-/etc/mptcp-suite/paused}"; STATE="${MPTCP_PAUSED_FAILOVER_STATE:-/tmp/mptcp-paused-failover.state}"
 ONCE="${MPTCP_PAUSED_FAILOVER_ONCE:-0}"; COMMAND="${1:---run}"
 LOCK="${MPTCP_PAUSED_FAILOVER_MONITOR_LOCK:-/tmp/mptcp-paused-failover-monitor.lock}"
 get(){ "$UCI" -q get "$1" 2>/dev/null || true; }
 log(){ logger -t mptcp-paused-failover "$*" 2>/dev/null || true; echo "$*"; }
+refresh_dns(){
+ [ -x "$XRAY_DNS_SVC" ] && "$XRAY_DNS_SVC" restart >/dev/null 2>&1 || true
+ [ -x "$DNSMASQ_SVC" ] && "$DNSMASQ_SVC" restart >/dev/null 2>&1 || true
+ log DNS_REFRESH=ok
+}
 probe(){
  CODE="$("$CURL" --interface "$1" -4 -sS --connect-timeout 3 --max-time 8 -o /dev/null -w "%{http_code}" "$URL" 2>/dev/null || true)"
  [ "$CODE" = 204 ] && return 0
@@ -51,7 +58,7 @@ save(){ T="$STATE.tmp.$$"; printf 'FC=%s\nRC=%s\n' "$FC" "$RC" >"$T"; mv "$T" "$
 restore_primary(){
  [ "$(actual_mode)" = secondary ] || { rm -f "$STATE"; return 0; }
  MPTCP_PAUSED_FAILOVER_APPLY=1 "$ROUTE" --apply RESTORE "$PDEV" "$PGW" "$PMET" "$SDEV" "$SGW" "$SMET" "$URL" "$PROBE_IP_PRIMARY" "$PROBE_IP_SECONDARY" || { log ERROR=restore_primary_failed; return 1; }
- rm -f "$STATE"; log STATE=primary
+ rm -f "$STATE"; log STATE=primary; refresh_dns
 }
 
 policy_cycle(){
@@ -64,15 +71,17 @@ policy_cycle(){
  POK=0; SOK=0; probe "$PDEV" && POK=1; probe "$SDEV" && SOK=1
  if [ "$ACT_PMODE" = unknown ] || [ "$ACT_PMODE" = empty ]; then
   if [ "$SOK" = 1 ]; then
-   "$POLICY" --secondary >/dev/null 2>&1 && PMODE=secondary && SFC=0 && SRC=0 || log ERROR=policy_secondary_restore
+   if "$POLICY" --secondary >/dev/null 2>&1; then PMODE=secondary; SFC=0; SRC=0; refresh_dns; else log ERROR=policy_secondary_restore; fi
   elif [ "$POK" = 1 ]; then
-   "$POLICY" --primary-fallback >/dev/null 2>&1 && PMODE=primary && SFC=0 && SRC=0 || log ERROR=policy_primary_fallback
+   if "$POLICY" --primary-fallback >/dev/null 2>&1; then PMODE=primary; SFC=0; SRC=0; refresh_dns; else log ERROR=policy_primary_fallback; fi
   fi
  elif [ "$SOK" = 1 ]; then
   SFC=0
   if [ "$PMODE" = primary ]; then
    SRC=$((SRC+1))
-   if [ "$SRC" -ge "$REC" ]; then "$POLICY" --secondary || log ERROR=policy_secondary_restore; PMODE=secondary; SRC=0; fi
+   if [ "$SRC" -ge "$REC" ]; then
+    if "$POLICY" --secondary; then PMODE=secondary; SRC=0; refresh_dns; else log ERROR=policy_secondary_restore; fi
+   fi
   else
    SRC=0
   fi
@@ -80,7 +89,9 @@ policy_cycle(){
   SRC=0
   if [ "$PMODE" = secondary ]; then
    SFC=$((SFC+1))
-   if [ "$SFC" -ge "$FAIL" ] && [ "$POK" = 1 ]; then "$POLICY" --primary-fallback || log ERROR=policy_primary_fallback; PMODE=primary; SFC=0; fi
+   if [ "$SFC" -ge "$FAIL" ] && [ "$POK" = 1 ]; then
+    if "$POLICY" --primary-fallback; then PMODE=primary; SFC=0; refresh_dns; else log ERROR=policy_primary_fallback; fi
+   fi
   else
    SFC=0
   fi
@@ -94,19 +105,36 @@ cycle(){
  MODE="$(actual_mode)"; [ "$MODE" != unknown ] || { log ERROR=route_state_unknown; return 1; }
  read_counts
  if [ "$MODE" = primary ]; then
-  RC=0; if [ "$POK" = 1 ]; then FC=0; else FC=$((FC+1)); fi
+  RC=0; PREV_FC="$FC"
+  if [ "$POK" = 1 ]; then
+   FC=0
+   [ "$PREV_FC" -gt 0 ] && refresh_dns
+  else
+   FC=$((FC+1))
+  fi
   if [ "$FC" -ge "$FAIL" ]; then
    [ "$SOK" = 1 ] || { log KEEP=both_unhealthy; save; return; }
    MPTCP_PAUSED_FAILOVER_APPLY=1 "$ROUTE" --apply FAILOVER "$PDEV" "$PGW" "$PMET" "$SDEV" "$SGW" "$SMET" "$URL" "$PROBE_IP_PRIMARY" "$PROBE_IP_SECONDARY" || { log ERROR=failover_transaction; save; return 1; }
-   FC=0; RC=0; log STATE=secondary
+   FC=0; RC=0; log STATE=secondary; refresh_dns
   fi
  else
   FC=0; if [ "$POK" = 1 ]; then RC=$((RC+1)); else RC=0; fi
   if [ "$RC" -ge "$REC" ]; then
    MPTCP_PAUSED_FAILOVER_APPLY=1 "$ROUTE" --apply RESTORE "$PDEV" "$PGW" "$PMET" "$SDEV" "$SGW" "$SMET" "$URL" "$PROBE_IP_PRIMARY" "$PROBE_IP_SECONDARY" || { log ERROR=restore_transaction; save; return 1; }
-   FC=0; RC=0; log STATE=primary
+   FC=0; RC=0; log STATE=primary; refresh_dns
   fi
  fi
  save
 }
-case "$COMMAND" in --restore) load_config; restore_primary;; --run) exec 8>"$LOCK"; flock -n 8 || { echo ERROR=locked; exit 0; }; while :; do cycle; [ "$ONCE" = 1 ] && exit 0; sleep "${INTERVAL:-10}"; done;; *) echo ERROR=invalid_mode; exit 2;; esac
+case "$COMMAND" in
+ --restore) load_config; restore_primary;;
+ --run)
+  exec 8>"$LOCK"; flock -n 8 || { echo ERROR=locked; exit 0; }
+  while :; do
+   if [ "$ONCE" = 1 ]; then cycle; exit 0; fi
+   cycle || true
+   sleep "${INTERVAL:-10}"
+  done
+ ;;
+ *) echo ERROR=invalid_mode; exit 2;;
+esac
