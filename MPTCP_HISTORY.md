@@ -226,3 +226,6 @@ Installed CI Build #79 packages for commit `d014c45` (`mptcp-suite-core-0.1-r1`,
 
 ### Public Repository CI & Documentation Hardening — 2026-11-27 17:30 WIB
 Added `paths-ignore` for Markdown files in `.github/workflows/{build,test}.yml`, added a dedicated `mptcp-suite-apks-x86_64` artifact for the five `action/*.apk` packages, replaced the remaining mock IPv4 address in `tests/test-tproxy-role-generator.sh` with RFC 5737 `203.0.113.10`, and updated `README.md` with full 5-package architecture, prerequisites, and OpenWrt 25.12 `apk` installation instructions. Verified all 79 unit tests passed (`pass=79 fail=0`) with Paused/Direct mode intact.
+
+### Automated GitHub Release Workflow for Version Tags — 2026-11-27 17:35 WIB
+Added `tags: [v*]` trigger, `contents: write` permission, and `softprops/action-gh-release@v2` step in `.github/workflows/build.yml` to attach all five `action/*.apk` packages to public GitHub Releases. Verified all 79 unit tests passed (`pass=79 fail=0`) with Paused/Direct mode intact.
