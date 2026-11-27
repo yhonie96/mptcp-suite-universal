@@ -232,3 +232,12 @@ Added `tags: [v*]` trigger, `contents: write` permission, and `softprops/action-
 
 ### Local DHCP, Xray JSON & Paused Routing Audit — 2026-11-27 18:15 WIB
 Verified local `/etc/config/dhcp` forwarding (`127.0.0.1#1053`) and `traffic_policy` ipsets, confirmed `/etc/xray/config.json` and `/etc/xray-5mbps/config.json` use `direct` catch-all outbounds while paused, and verified `ip rule` priority `99` (`fwmark 0x102/0x1ff`) routes cleanly to table `101`. Verified all 79 unit tests passed (`pass=79 fail=0`).
+
+### Fix Managed Rule & Table Cleanup in `routing-rollback` — 2026-11-27 19:37 WIB
+Updated `mptcp-suite-routing/files/usr/libexec/mptcp-suite/routing-rollback`
+(and synced `/usr/libexec/mptcp-suite/routing-rollback`) to remove managed
+`ip rule` priorities and flush managed routing tables before restoring the
+pre-activation snapshot, preventing orphaned MPTCP policy rules (`104`-`106`)
+when `mptcp-activate --apply` triggers rollback. Added regression assertions
+in `tests/test-routing-rollback-mock.sh` and verified all 79 unit tests
+passed (`pass=79 fail=0`).

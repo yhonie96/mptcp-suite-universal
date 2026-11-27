@@ -26,6 +26,10 @@ case "$cmd:$key" in
 esac
 exit 0
 EOF
+cat >"$D/bin/ip" <<'EOF'
+#!/bin/sh
+echo "IP $*" >>"$MOCK_LOG"
+EOF
 cat >"$D/bin/restore" <<'EOF'
 #!/bin/sh
 echo "RESTORE $*" >>"$MOCK_LOG"
@@ -43,7 +47,7 @@ run(){
  MOCK_UCI_SET_FAIL="${MOCK_UCI_SET_FAIL:-0}" MOCK_UCI_COMMIT_FAIL="${MOCK_UCI_COMMIT_FAIL:-0}" \
  MOCK_RESTORE_FAIL="${MOCK_RESTORE_FAIL:-0}" MOCK_LOCK_BUSY="${MOCK_LOCK_BUSY:-0}" \
  MPTCP_ROUTING_SNAPSHOT="$D/snapshot" MPTCP_ROUTING_CONFIG_DIR="$D/config" \
- MPTCP_ROUTING_RESTORE_BIN="$D/bin/restore" MPTCP_ROUTING_UCI_BIN="$D/bin/uci" \
+ MPTCP_ROUTING_IP_BIN="$D/bin/ip" MPTCP_ROUTING_RESTORE_BIN="$D/bin/restore" MPTCP_ROUTING_UCI_BIN="$D/bin/uci" \
  MPTCP_ROUTING_FLOCK_BIN="$D/bin/flock" MPTCP_ROUTING_ROLLBACK_LOCK="$D/lock" "$R" "$@"
 }
 
@@ -56,6 +60,12 @@ mv "$D/snapshot.off" "$D/snapshot"
 echo ROUTING_ROLLBACK_MISSING_SNAPSHOT_OK
 : >"$D/actions"; echo 1 >"$D/applied"; run --apply | grep -Fq ROUTING_ROLLBACK_OK
 [ "$(cat "$D/applied")" = 0 ]; grep -Fq '11001 11002 11003 104 105 106' "$D/actions"
+grep -Fq 'IP rule del priority 104' "$D/actions"
+grep -Fq 'IP rule del priority 105' "$D/actions"
+grep -Fq 'IP rule del priority 106' "$D/actions"
+grep -Fq 'IP route flush table 11001' "$D/actions"
+grep -Fq 'IP route flush table 11002' "$D/actions"
+grep -Fq 'IP route flush table 11003' "$D/actions"
 echo ROUTING_ROLLBACK_SUCCESS_OK
 echo 1 >"$D/applied"; set +e; out="$(MOCK_RESTORE_FAIL=1 run --apply 2>&1)"; rc=$?; set -e
 [ "$rc" -eq 7 ]; [ "$(cat "$D/applied")" = 1 ]; echo "$out" | grep -Fq ERROR=restore_failed

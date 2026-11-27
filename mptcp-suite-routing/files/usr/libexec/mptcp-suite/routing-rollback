@@ -4,6 +4,7 @@ set -eu
 MODE="${1:---dry-run}"
 SNAP="${MPTCP_ROUTING_SNAPSHOT:-/tmp/mptcp-routing.snapshot}"
 CFG="${MPTCP_ROUTING_CONFIG_DIR:-/etc/config}"
+IP="${MPTCP_ROUTING_IP_BIN:-ip}"
 RESTORE="${MPTCP_ROUTING_RESTORE_BIN:-/usr/libexec/mptcp-suite/routing-restore}"
 UCI="${MPTCP_ROUTING_UCI_BIN:-uci}"
 FLOCK="${MPTCP_ROUTING_FLOCK_BIN:-flock}"
@@ -46,7 +47,13 @@ esac
 [ "$PT" != "$ST" ] && [ "$PT" != "$TT" ] && [ "$ST" != "$TT" ] || { echo ERROR=duplicate_table; exit 6; }
 [ "$BP" != "$PP" ] && [ "$BP" != "$TP" ] && [ "$PP" != "$TP" ] || { echo ERROR=duplicate_priority; exit 6; }
 
+clear_managed(){
+ for P in "$BP" "$PP" "$TP"; do "$IP" rule del priority "$P" 2>/dev/null || true; done
+ for T in "$PT" "$ST" "$TT"; do "$IP" route flush table "$T" 2>/dev/null || true; done
+}
+
 OLD="$(get applied || true)"
+clear_managed
 "$RESTORE" "$SNAP" "$PT" "$ST" "$TT" "$BP" "$PP" "$TP" || { echo ERROR=restore_failed; exit 7; }
 
 state_revert(){
