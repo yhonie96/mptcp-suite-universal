@@ -217,3 +217,6 @@ Standardized remaining user-facing "Draft" labels to standard Indonesian "Draf" 
 
 ### Added US English README.md and verified test suite recorded Wed Nov 25 23:07:37 WIB 2026
 Created README.md in US English documenting package layout, language and contract standards, and test execution, verified all 78/78 tests passing, and kept paused Direct mode running undisturbed.
+
+### Paused failover DNS refresh and xray-dns adblock rule recorded Fri Nov 27 15:18:47 WIB 2026
+Committed a8c56bf and 7aa7d7e on main adding DNS refresh on paused failover in paused-failover-monitor and paused-policy-failover, fallback DNS servers and the pangleglobal.com adblock rule in /etc/xray-dns/config.json, and regression coverage in tests/test-paused-failover-dns-refresh.sh. Live router scripts and /etc/xray-dns/config.json match HEAD; no new package build required on this router while runtime remains undisturbed.
