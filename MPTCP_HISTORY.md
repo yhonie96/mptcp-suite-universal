@@ -229,3 +229,6 @@ Added `paths-ignore` for Markdown files in `.github/workflows/{build,test}.yml`,
 
 ### Automated GitHub Release Workflow for Version Tags — 2026-11-27 17:35 WIB
 Added `tags: [v*]` trigger, `contents: write` permission, and `softprops/action-gh-release@v2` step in `.github/workflows/build.yml` to attach all five `action/*.apk` packages to public GitHub Releases. Verified all 79 unit tests passed (`pass=79 fail=0`) with Paused/Direct mode intact.
+
+### Local DHCP, Xray JSON & Paused Routing Audit — 2026-11-27 18:15 WIB
+Verified local `/etc/config/dhcp` forwarding (`127.0.0.1#1053`) and `traffic_policy` ipsets, confirmed `/etc/xray/config.json` and `/etc/xray-5mbps/config.json` use `direct` catch-all outbounds while paused, and verified `ip rule` priority `99` (`fwmark 0x102/0x1ff`) routes cleanly to table `101`. Verified all 79 unit tests passed (`pass=79 fail=0`).
