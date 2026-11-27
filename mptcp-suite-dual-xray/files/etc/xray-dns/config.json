@@ -10,7 +10,8 @@
       "8.8.8.8"
     ],
     "hosts": {
-      "geosite:category-ads-all": "#3"
+      "geosite:category-ads-all": "#3",
+      "domain:pangleglobal.com": "#3"
     }
   },
   "inbounds": [
