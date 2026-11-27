@@ -220,3 +220,6 @@ Created README.md in US English documenting package layout, language and contrac
 
 ### Paused failover DNS refresh and xray-dns adblock rule recorded Fri Nov 27 15:18:47 WIB 2026
 Committed a8c56bf and 7aa7d7e on main adding DNS refresh on paused failover in paused-failover-monitor and paused-policy-failover, fallback DNS servers and the pangleglobal.com adblock rule in /etc/xray-dns/config.json, and regression coverage in tests/test-paused-failover-dns-refresh.sh. Live router scripts and /etc/xray-dns/config.json match HEAD; no new package build required on this router while runtime remains undisturbed.
+
+### Package Deployment & 79-Test Verification on OpenWrt 25.12.5 — 2026-11-27 17:00 WIB
+Installed CI Build #79 packages for commit `d014c45` (`mptcp-suite-core-0.1-r1`, `mptcp-suite-routing-0.1-r1`, `mptcp-suite-traffic-0.2-r1`, `luci-app-mptcp-suite-0.1-r2`, and `mptcp-suite-dual-xray-0.1-r1`) via `apk add --allow-untrusted` and reloaded `rpcd` and `uhttpd`. Verified full file parity (`cmp -s`) across all five package trees with expected local runtime differences limited to `/etc/config/{mptcp_suite,traffic_policy,mptcp_profiles}` and consumed `/etc/uci-defaults/*` scripts, confirmed all 79
