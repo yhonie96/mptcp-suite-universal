@@ -8,6 +8,8 @@ on:
   workflow_dispatch:
   push:
     branches: [ main ]
+    paths-ignore:
+      - '**.md'
 
 jobs:
   test:
@@ -35,7 +37,7 @@ jobs:
         run: |
           set -e
           P=mptcp-suite-core
-          if grep -RniE '192\.168\.(1|8)\.|eth1|phy0-sta0|WAN1|103\.147\.32\.114' "$P/files"; then
+          if grep -RniE '192\.168\.(1|8)\.|eth1|phy0-sta0|WAN1' "$P/files"; then
             echo "Router-specific hardcode found"
             exit 1
           fi

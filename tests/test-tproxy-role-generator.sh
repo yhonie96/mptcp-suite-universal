@@ -6,12 +6,12 @@ cat >"$D/uci" <<'MOCK'
 #!/bin/sh
 case "$*" in
  '-q show mptcp_profiles') printf 'mptcp_profiles.alpha=profile\nmptcp_profiles.beta=profile\n';;
- *alpha.enabled) echo 1;; *alpha.diversion_role) echo "${ROLE_A:-main}";; *alpha.server) echo "${SERVER_A:-103.147.32.114}";; *alpha.local_port) echo "${PORT_A:-23451}";;
- *beta.enabled) echo 1;; *beta.diversion_role) echo "${ROLE_B:-limited}";; *beta.server) echo "${SERVER_B:-103.147.32.114}";; *beta.local_port) echo "${PORT_B:-23452}";;
+ *alpha.enabled) echo 1;; *alpha.diversion_role) echo "${ROLE_A:-main}";; *alpha.server) echo "${SERVER_A:-203.0.113.10}";; *alpha.local_port) echo "${PORT_A:-23451}";;
+ *beta.enabled) echo 1;; *beta.diversion_role) echo "${ROLE_B:-limited}";; *beta.server) echo "${SERVER_B:-203.0.113.10}";; *beta.local_port) echo "${PORT_B:-23452}";;
  *) exit 1;; esac
 MOCK
 chmod 755 "$D/uci"
-run(){ env MPTCP_UCI_BIN="$D/uci" ROLE_A="${ROLE_A:-main}" ROLE_B="${ROLE_B:-limited}" SERVER_A="${SERVER_A:-103.147.32.114}" SERVER_B="${SERVER_B:-103.147.32.114}" PORT_A="${PORT_A:-23451}" PORT_B="${PORT_B:-23452}" "$G" "$D/out.nft"; }
+run(){ env MPTCP_UCI_BIN="$D/uci" ROLE_A="${ROLE_A:-main}" ROLE_B="${ROLE_B:-limited}" SERVER_A="${SERVER_A:-203.0.113.10}" SERVER_B="${SERVER_B:-203.0.113.10}" PORT_A="${PORT_A:-23451}" PORT_B="${PORT_B:-23452}" "$G" "$D/out.nft"; }
 run | grep -qx TPROXY_NFT_GENERATE_OK
 grep -Fq '127.0.0.1:23451' "$D/out.nft"; grep -Fq '127.0.0.1:23452' "$D/out.nft"; grep -Fq 'Android-connectivity' "$D/out.nft"
 set +e; O="$(ROLE_B=main run 2>&1)"; R=$?; set -e; [ "$R" -eq 3 ]; [ "$O" = ERROR=duplicate_main_role ]
